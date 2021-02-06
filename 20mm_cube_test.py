@@ -33,12 +33,43 @@ d3sections = [section.to_3D() for section in sections ]
 face_indices = [path.metadata['face_index'] for path in sections]
 d3sectionsverts = [s.vertices for s in d3sections]
 print('face_indices', face_indices)
+face_normals = [mesh.face_normals[segment_face_indices] for segment_face_indices in face_indices]
+print('face_normals', face_normals)
+
+
+standoff_dist = 1
+for section_iter, section_path_group in enumerate(d3sections):
+    #path_group.show()
+    print('path_group',type(section_path_group) ,section_path_group, 'path_group attribs:\n', section_path_group.__dict__ , '\n')
+    face_indices = section_path_group.metadata['face_index']
+
+    for subpath_iter, subpath in enumerate(section_path_group.entities):
+        translated_verts = []
+        ori_verts = []
+        for line_segment_index in range(len(subpath.points)-1):
+            this_face_normal = mesh.face_normals[face_indices[line_segment_index]]
+            vert1_index = subpath.points[line_segment_index]
+
+            vert1 = section_path_group.vertices[vert1_index]
+            vert2 = section_path_group.vertices[vert1_index+1]
+            ori_verts.append(vert1)
+            ori_verts.append(vert2)
+            new_ver1 = this_face_normal*standoff_dist + vert1
+            new_ver2 = this_face_normal * standoff_dist + vert2
+
+            translated_verts.append(new_ver1)
+            translated_verts.append(new_ver2)
+
+
+        print('\nori_verts', ori_verts, '\ntranslated_verts', translated_verts)
+
 combined3d = np.sum(d3sections)
 #print(sections, sections[-1].vertices)
 #print(np.array(sections))
 combined = np.sum(sections)
-print(combined, combined3d, combined3d.vertices)
+#print(combined, combined3d, combined3d.vertices)
 #combined.show()
 combined3d.show()
-
+def displace_segment_along_vector(path3D, vector, distance):
+    return vector*distance+path3D
 
