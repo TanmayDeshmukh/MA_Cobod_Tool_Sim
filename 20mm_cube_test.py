@@ -9,17 +9,16 @@ import trimesh
 from mpl_toolkits.mplot3d.axes3d import Axes3D
 import matplotlib.pyplot as plt
 
-fig, ax = plt.subplots(subplot_kw={'projection': '3d'})
-
-
-
 from trimesh.exchange.binvox import voxelize_mesh
 from trimesh import voxel as v
 mesh = trimesh.load_mesh('models/20mm_cube.stl')
+scene = trimesh.Scene()
+scene.add_geometry(mesh)
 #faces_mask = np.array([i for i, normal in enumerate(mesh.face_normals) if normal[2]>0.5])
 #print('faces_mask', faces_mask)
 #mesh.update_faces(faces_mask)
 
+fig, ax = plt.subplots(subplot_kw={'projection': '3d'})
 min_lim = min(mesh.bounds[0,:])
 max_lim = max(mesh.bounds[1,:])
 ax.set_xlim3d(min_lim, max_lim)
@@ -58,7 +57,8 @@ for section_iter, section_path_group in enumerate(d3sections):
     print('path_group', type(section_path_group) ,section_path_group, 'path_group attribs:\n', section_path_group.__dict__ , '\n')
     face_indices = section_path_group.metadata['face_index']
 
-
+    new_entities = []
+    all_verts = []
     for subpath_iter, subpath in enumerate(section_path_group.entities):
         translated_verts = []
         ori_verts = []
@@ -73,25 +73,34 @@ for section_iter, section_path_group in enumerate(d3sections):
             new_ver1 = this_face_normal*standoff_dist + vert1
             new_ver2 = this_face_normal * standoff_dist + vert2
 
-            translated_verts.append([x for x in vert1])
-            translated_verts.append([x for x in vert2])
+            #translated_verts.append([x for x in vert1])
+            #translated_verts.append([x for x in vert2])
             translated_verts.append([x for x in new_ver1])
             translated_verts.append([x for x in new_ver2])
+        translated_verts = list(set([tuple(c) for c in translated_verts]))
 
+        entity = trimesh.path.entities.Line(points=list(range(len(all_verts), len(translated_verts)+len(all_verts))))
+        all_verts += translated_verts
+        new_entities.append(entity)
+        translated_verts = np.transpose(np.array(translated_verts))
+        ax.plot(translated_verts[0], translated_verts[1], translated_verts[2])
+        new_section_entities = np.stack(np.array(translated_verts))
+    print('len(translated_verts)', len(np.array(all_verts)), 'new_entities', len(new_entities))
+    print('all_verts', all_verts, '\ntranslated_verts', translated_verts)
+    path3ds = trimesh.path.path.Path3D(entities=new_entities, vertices=np.array(all_verts), metadata=None)
+    scene.add_geometry(path3ds)
         # remove dublicates (happens when triangles are coplanar)
         #translated_verts = list(set(set(tuple(i) for i in translated_verts)))
         # new_entities = trimesh.path.entities.Line(np.array(translated_verts))
         #new_section_entities.append(np.array(translated_verts))
-        translated_verts = np.transpose(np.array(translated_verts))
-        ax.plot(translated_verts[0], translated_verts[1], translated_verts[2])
-        new_section_entities = np.stack(np.array(translated_verts))
-        print('\nori_verts', ori_verts, '\ntranslated_verts', translated_verts)
+
 print('new_section_entities', new_section_entities)
 new_section_entities = np.array(translated_verts)
 new_section_entities = np.transpose(new_section_entities)
 print('new_section_entities[:0]', new_section_entities[0])
 
 plt.show()
+scene.show()
 combined3d = np.sum(d3sections)
 new_d3sections_combined = np.sum(new_d3sections+d3sections)
 #print(sections, sections[-1].vertices)
