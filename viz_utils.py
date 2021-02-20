@@ -5,7 +5,6 @@ import numpy as np
 
 
 # Drawing arrows: https://stackoverflow.com/a/22867877
-
 class Arrow3D(FancyArrowPatch):
     def __init__(self, xs, ys, zs, *args, **kwargs):
         FancyArrowPatch.__init__(self, (0,0), (0,0), *args, **kwargs)
@@ -30,7 +29,8 @@ def plot_path(ax, vertices: [[]], color="g"):
     vertices = np.transpose(vertices)
     #ax.plot(vertices[0], vertices[1], vertices[2])
 
-def plot_normals(ax, vertices: [[]], directions:[[]]):
+
+def plot_normals(ax, vertices: [[]], directions: [[]]) -> None:
     vertices = np.array(vertices)
     directions = np.array(directions)
     norm_length = 0.15
@@ -42,5 +42,5 @@ def plot_normals(ax, vertices: [[]], directions:[[]]):
                     lw=1, arrowstyle="-|>", color="r")
         a.set_zorder(5)
         ax.add_artist(a)
-    vertices = np.transpose(vertices)
+    # vertices = np.transpose(vertices)
     #ax.plot(vertices[0], vertices[1], vertices[2])
