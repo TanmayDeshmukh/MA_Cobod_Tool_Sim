@@ -57,13 +57,14 @@ mesh.update_faces(faces_mask)
 mesh.visual.face_colors = [50, 150, 50, 255]
 scene.add_geometry(mesh)
 
+"""
 mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
 # mplot.set_alpha(0.6)
 mplot.set_facecolor('cornflowerblue')
 # mplot.set_edgecolor('k')
 mplot.set_sort_zpos(-1)
 ax.add_collection3d(mplot)
-
+"""
 
 y_extents = mesh.bounds[:, 0]
 # slice every .10 model units
@@ -306,7 +307,7 @@ combined3d = np.sum(d3sections)
 combined = np.sum(sections)
 
 constant_vel = 0.5 # m/s
-deposition_sim_time_resolution = 0.8 #s
+deposition_sim_time_resolution = 0.1 #s
 sample_dist = constant_vel*deposition_sim_time_resolution
 # Create pose list from constant time interval
 all_tool_positions = []
@@ -337,11 +338,11 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
     else:
         print('not the same')
         # Spherical interpolation
-        normals = [(np.sin((1.0 - t)*omega)/so)*n0 + (np.sin(t*omega) / so)*n1 for t in np.arange(0.0, 1.0, 1.0/n_samples)]
+        normals = [-((np.sin((1.0 - t)*omega)/so)*n0 + (np.sin(t*omega) / so)*n1) for t in np.arange(0.0, 1.0, 1.0/n_samples)]
     continuous_tool_normals = normals
     print('new_norms', len(normals), len(continuous_tool_positions), n_samples, normals)
     #plot_normals(ax=ax, vertices=continuous_tool_positions, directions=normals)
-    plot_path(ax, continuous_tool_positions)
+    # plot_path(ax, continuous_tool_positions)
     #print('cont tool pos', continuous_tool_positions)
 
     all_tool_positions.append(continuous_tool_positions), tool_normals.append(continuous_tool_normals)
@@ -350,44 +351,76 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
 # combined3d.show()
 # scene.show()
 
-number_of_samples = 50000
+number_of_samples = 5000
 samples, face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
 deposition_thickness = [0.0]*len(samples)
-ax.scatter(samples[:,0], samples[:, 1], samples[:, 2], s=0.1, c=deposition_thickness)
+# ax.scatter(samples[:,0], samples[:, 1], samples[:, 2], s=0.1, c=deposition_thickness)
 print(face_index)
 
 gun_model = SprayGunModel()
 
 def affected_points_for_tool_position(points, face_indexes, current_tool_position, current_tool_normal, current_tool_major_axis_vec, gun_model):
-    point_indices = []
+    affected_points = []
     deposition_amount = []
+    intensities = []
     for i, point in enumerate(points):
         tool_pos_to_point = point-current_tool_position
         tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
-        tool_pos_to_point /= LA.norm(tool_pos_to_point)
-        angle_normal_to_point = angle_between_vectors(tool_pos_to_point, current_tool_normal)
+        # tool_pos_to_point /= LA.norm(tool_pos_to_point)
+        angle_normal_to_point = angle_between_vectors(tool_pos_to_point/LA.norm(tool_pos_to_point), current_tool_normal)
         normal_dist_h_dash = np.cos(angle_normal_to_point)*tool_pos_to_point_dist
         rp = tool_pos_to_point-current_tool_normal*normal_dist_h_dash
 
-        angle_major_axis_to_point = angle_between_vectors(rp, current_tool_major_axis_vec)
-        rmax = np.sqrt((gun_model.a**2)*np.cos(angle_major_axis_to_point)**2+(gun_model.b**2)*np.sin(angle_major_axis_to_point)**2)
-        alpha_max = np.arctan(rmax/normal_dist_h_dash)
 
-        if angle_normal_to_point<=alpha_max:
-            point_indices.append(i)
-    return point_indices
+        angle_major_axis_to_point = angle_between_vectors(rp/LA.norm(rp), current_tool_major_axis_vec)
+
+
+        rmax = gun_model.a*gun_model.b*np.sqrt((1/ (gun_model.b**2+(gun_model.a*np.tan(angle_major_axis_to_point))**2))**2 +
+                                               (1/(gun_model.a**2+gun_model.b**2/np.tan(angle_major_axis_to_point)**2))**2)
+        rmax = np.sqrt(((gun_model.a) * np.sin(angle_major_axis_to_point)) ** 2 + (
+                    (gun_model.b) * np.cos(angle_major_axis_to_point)) ** 2)
+        alpha_max = np.arctan(rmax/normal_dist_h_dash)
+        d_rp = LA.norm(rp)
+        x, y = d_rp * np.sin(angle_major_axis_to_point), d_rp * np.cos(angle_major_axis_to_point)
+
+        if gun_model.check_point_validity(x, y):
+        #if angle_normal_to_point < alpha_max:
+            #print('alpha_max', np.degrees(alpha_max), 'rmax', rmax, 'normal_dist_h_dash', normal_dist_h_dash,
+            #      'angle_normal_to_point', np.degrees(angle_normal_to_point))
+
+            affected_points.append(i)
+            # Estimate deposition thickness for this point
+            surface_normal = mesh.face_normals[face_indexes[i]]
+            # print('surface_normal', surface_normal)
+
+            # print('xy', x, y, 'd_rp', d_rp, 'rp', rp, 'current_tool_normal*normal_dist_h_dash', current_tool_normal*normal_dist_h_dash, 'normal_dist_h_dash', normal_dist_h_dash)
+            deposition_at_h = gun_model.deposition_intensity(x, y)
+            #if deposition_at_h>0.0:
+            #    plot_normals(ax, [current_tool_position], directions=[tool_pos_to_point / LA.norm(tool_pos_to_point)])
+            multiplier = ((gun_model.h/normal_dist_h_dash)**2) * np.dot(surface_normal, -current_tool_normal) * deposition_sim_time_resolution
+            intensities.append(deposition_at_h*multiplier)
+
+    #print('affected_points', affected_points, '\nintensities', intensities)
+
+    return affected_points, intensities
 
 
 print('all_tool_positions', all_tool_positions, '\ntool_normals', tool_normals)
 
-for continuous_tool_positions,continuous_tool_normals  in zip(all_tool_positions[:1], tool_normals[:1]):
+for continuous_tool_positions,continuous_tool_normals  in zip(all_tool_positions[3:5], tool_normals[3:5]):
     for current_tool_position, current_tool_normal in zip(continuous_tool_positions, continuous_tool_normals):
         # find the points affected by this tool position
-        current_tool_minor_axis_vec = np.array([0,0,1])
+        current_tool_minor_axis_vec = np.array([0,0,-1])
         current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
-        affected_points = samples[affected_points_for_tool_position(samples, face_index, current_tool_position, current_tool_normal, current_tool_major_axis_vec, gun_model)]
+        affected_points, intensities =affected_points_for_tool_position(samples, face_index, current_tool_position, current_tool_normal, current_tool_major_axis_vec, gun_model)
+        for index, intensity in zip(affected_points, intensities):
+            deposition_thickness[index] += intensity
+            if intensity<0:
+                print('in', intensity)
         # calculate deposition for each of these points
-        ax.scatter(affected_points[:, 0], affected_points[:, 1], affected_points[:, 2], s=0.5, c='g')
+ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=0.5, c=deposition_thickness)
+#ax.plot_surface(samples[:, 0], samples[:, 1], samples[:, 2], c=deposition_thickness)
+#ax.plot_trisurf(samples[:, 0], samples[:, 1], samples[:, 2])
 plt.show()
 def displace_segment_along_vector(path3D, vector, distance):
     return vector * distance + path3D

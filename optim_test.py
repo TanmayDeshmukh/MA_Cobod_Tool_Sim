@@ -6,12 +6,12 @@ from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import stl
 import time
 
-resolution = 0.05
-orientation = np.pi / 4.0
+resolution = 0.004
+orientation = 0# np.pi / 4.0
 
 
 class SprayGunModel:
-    def __init__(self, beta1=1.5, beta2=4, a=1, b=2, f_max=1):
+    def __init__(self, beta1=1.5, beta2=1.1, a=0.1, b=0.3, f_max=1):
         self.beta1 = beta1
         self.beta2 = beta2
         self.a = a
@@ -93,12 +93,12 @@ print("--- %s seconds ---" % (time.time() - start_time))
 # plt.show()
 
 
-plot_arr_x = np.arange(-rotated_a, rotated_a - resolution,
+plot_arr_x = np.arange(-rotated_a, rotated_a ,
                        resolution)
 
-plot_arr_y = np.arange(-rotated_b, rotated_b - resolution,
+plot_arr_y = np.arange(-rotated_b, rotated_b ,
                        resolution)
-print('Shape', plot_arr_x.shape, plot_arr_y.shape)
+print('Shape', plot_arr_x.shape, plot_arr_y.shape, np_dep_temp.shape)
 fig = plt.figure()
 ax = fig.gca(projection='3d')
 X, Y = np.meshgrid(plot_arr_x, plot_arr_y)
