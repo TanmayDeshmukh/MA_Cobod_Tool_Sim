@@ -1,12 +1,13 @@
 import numpy as np
 class SprayGunModel:
-    def __init__(self, beta1=1.5, beta2=4, a=1, b=2, f_max=1, resolution=0.01):
+    def __init__(self, beta1=1.5, beta2=4, a=0.1, b=0.2, f_max=1, resolution=0.01):
         self.beta1 = beta1
         self.beta2 = beta2
         self.a = a
         self.b = b
         self.f_max = f_max
         self.resolution = resolution
+        self.z_orientation = 0
 
     def deposition_intensity(self, x, y) -> float:
         # x_r = x * np.cos(orientation) - y * np.sin(orientation)
