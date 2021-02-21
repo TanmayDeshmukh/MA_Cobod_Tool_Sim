@@ -1,17 +1,15 @@
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 import matplotlib.pyplot as plt
-from matplotlib import cm
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
-import stl
 import time
 
-resolution = 0.004
-orientation = 0# np.pi / 4.0
+resolution = 0.002
+orientation = 0  # np.pi / 4.0
 
 
 class SprayGunModel:
-    def __init__(self, beta1=1.5, beta2=1.1, a=0.1, b=0.3, f_max=1):
+    def __init__(self, beta1=1.5, beta2=1.3, a=0.1, b=0.3, f_max=1):
         self.beta1 = beta1
         self.beta2 = beta2
         self.a = a
@@ -65,6 +63,7 @@ print('end_populating')
 
 print("--- %s seconds ---" % (time.time() - start_time))
 
+"""
 start_time = time.time()
 np_dep_temp = np.zeros((int(rotated_b * 2 / resolution), int(rotated_a * 2 / resolution)))
 print('start_populating2', len(deposition_template[0]), len(deposition_template), rotated_a / resolution,
@@ -87,7 +86,7 @@ print('end_populating2')
 # print(deposition_template)
 # print('max', max(deposition_template))
 
-print("--- %s seconds ---" % (time.time() - start_time))
+print("--- %s seconds ---" % (time.time() - start_time))"""
 
 # plt.imshow(np_dep_temp, cmap='hot')
 # plt.show()
@@ -98,11 +97,11 @@ plot_arr_x = np.arange(-rotated_a, rotated_a ,
 
 plot_arr_y = np.arange(-rotated_b, rotated_b ,
                        resolution)
-print('Shape', plot_arr_x.shape, plot_arr_y.shape, np_dep_temp.shape)
+# print('Shape', plot_arr_x.shape, plot_arr_y.shape, np_dep_temp.shape)
 fig = plt.figure()
 ax = fig.gca(projection='3d')
 X, Y = np.meshgrid(plot_arr_x, plot_arr_y)
-surf = ax.plot_surface(X, Y, np_dep_temp,
+surf = ax.plot_surface(X, Y, np.array(deposition_template),
                        linewidth=0, antialiased=False)
 # ax.zaxis.set_major_locator(LinearLocator(10))
 ax.zaxis.set_major_formatter(FormatStrFormatter('%.02f'))
