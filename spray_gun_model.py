@@ -1,6 +1,6 @@
 import numpy as np
 class SprayGunModel:
-    def __init__(self, beta1=1.5, beta2=1.3, a=0.1, b=0.3, f_max=0.0001):
+    def __init__(self, beta1=1.5, beta2=1.3, a=0.1, b=0.3, f_max=0.001):
         self.beta1 = beta1
         self.beta2 = beta2
         self.a = a

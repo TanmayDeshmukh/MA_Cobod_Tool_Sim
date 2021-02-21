@@ -244,7 +244,7 @@ combined = np.sum(sections)
 
 
 constant_vel = 0.5 # m/s
-deposition_sim_time_resolution = 0.1 #s
+deposition_sim_time_resolution = 0.01 #s
 sample_dist = constant_vel*deposition_sim_time_resolution
 
 ############ Create pose list from constant time interval ##############
@@ -288,77 +288,106 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
 
 # combined3d.show()
 # scene.show()1
-number_of_samples = 5000
-samples, face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
+number_of_samples = 10000
+samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
 deposition_thickness = [0.0]*len(samples)
 # ax.scatter(samples[:,0], samples[:, 1], samples[:, 2], s=0.1, c=deposition_thickness)
-print(face_index)
+print(sample_face_index)
 
 gun_model = SprayGunModel()
 
-def affected_points_for_tool_position(points, face_indexes, current_tool_position, current_tool_normal, current_tool_major_axis_vec, gun_model):
-    affected_points = []
+def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample_face_indexes,sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes, gun_model):
     deposition_amount = []
     intensities = []
-    for i, point in enumerate(points):
-        tool_pos_to_point = point-current_tool_position
-        tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
-        # tool_pos_to_point /= LA.norm(tool_pos_to_point)
-        angle_normal_to_point = angle_between_vectors(tool_pos_to_point/LA.norm(tool_pos_to_point), current_tool_normal)
-        normal_dist_h_dash = np.cos(angle_normal_to_point)*tool_pos_to_point_dist
-        rp = tool_pos_to_point-current_tool_normal*normal_dist_h_dash
-        angle_major_axis_to_point = angle_between_vectors(rp/LA.norm(rp), current_tool_major_axis_vec)
-        rmax = gun_model.a*gun_model.b*np.sqrt((1/ (gun_model.b**2+(gun_model.a*np.tan(angle_major_axis_to_point))**2))**2 +
-                                               (1/(gun_model.a**2+gun_model.b**2/np.tan(angle_major_axis_to_point)**2))**2)
-        rmax = np.sqrt(((gun_model.a) * np.sin(angle_major_axis_to_point)) ** 2 + (
-                    (gun_model.b) * np.cos(angle_major_axis_to_point)) ** 2)
-        alpha_max = np.arctan(rmax/normal_dist_h_dash)
-        d_rp = LA.norm(rp)
-        x, y = d_rp * np.sin(angle_major_axis_to_point), d_rp * np.cos(angle_major_axis_to_point)
 
-        if gun_model.check_point_validity(x, y):
-        #if angle_normal_to_point < alpha_max:
-            #print('alpha_max', np.degrees(alpha_max), 'rmax', rmax, 'normal_dist_h_dash', normal_dist_h_dash,
-            #      'angle_normal_to_point', np.degrees(angle_normal_to_point))
+    # find points within sphere of radius of major axis
+    #print('point_index : ')
+    k=1
+    for intersection_location, current_tool_position,current_tool_normal,current_tool_major_axis_vec in zip(sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes):
+        #print('querying')
+        print(k, end='')
+        query_ball_points = sample_tree.query_ball_point(intersection_location , gun_model.b)
+        # print('done', len(query_ball_points), query_ball_points)
+        print('.', end='')
+        k += 1
+        i = 0
+        for point_index in query_ball_points:
+            # print('point_index', point_index, i)
+            point = sample_tree.data[point_index]
 
-            affected_points.append(i)
-            # Estimate deposition thickness for this point
-            surface_normal = mesh.face_normals[face_indexes[i]]
-            # print('surface_normal', surface_normal)
+            tool_pos_to_point = point-current_tool_position
+            tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
+            # tool_pos_to_point /= LA.norm(tool_pos_to_point)
+            angle_normal_to_point = angle_between_vectors(tool_pos_to_point/LA.norm(tool_pos_to_point), current_tool_normal)
+            normal_dist_h_dash = np.cos(angle_normal_to_point)*tool_pos_to_point_dist
+            rp = tool_pos_to_point-current_tool_normal*normal_dist_h_dash
+            angle_major_axis_to_point = angle_between_vectors(rp/LA.norm(rp), current_tool_major_axis_vec)
+            #rmax = gun_model.a*gun_model.b*np.sqrt((1/ (gun_model.b**2+(gun_model.a*np.tan(angle_major_axis_to_point))**2))**2 +
+            #                                       (1/(gun_model.a**2+gun_model.b**2/np.tan(angle_major_axis_to_point)**2))**2)
+            #rmax = np.sqrt(((gun_model.a) * np.sin(angle_major_axis_to_point)) ** 2 + (
+            #            (gun_model.b) * np.cos(angle_major_axis_to_point)) ** 2)
+            # alpha_max = np.arctan(rmax/normal_dist_h_dash)
+            d_rp = LA.norm(rp)
+            x, y = d_rp * np.sin(angle_major_axis_to_point), d_rp * np.cos(angle_major_axis_to_point)
 
-            # print('xy', x, y, 'd_rp', d_rp, 'rp', rp, 'current_tool_normal*normal_dist_h_dash', current_tool_normal*normal_dist_h_dash, 'normal_dist_h_dash', normal_dist_h_dash)
-            deposition_at_h = gun_model.deposition_intensity(x, y)
-            #if deposition_at_h>0.0:
-            #    plot_normals(ax, [current_tool_position], directions=[tool_pos_to_point / LA.norm(tool_pos_to_point)])
-            multiplier = ((gun_model.h/normal_dist_h_dash)**2) * np.dot(surface_normal, -current_tool_normal) * deposition_sim_time_resolution
-            intensities.append(deposition_at_h*multiplier)
+            if gun_model.check_point_validity(x, y):
+            #if angle_normal_to_point < alpha_max:
+                #print('alpha_max', np.degrees(alpha_max), 'rmax', rmax, 'normal_dist_h_dash', normal_dist_h_dash,
+                #      'angle_normal_to_point', np.degrees(angle_normal_to_point))
 
-    #print('affected_points', affected_points, '\nintensities', intensities)
+                # Estimate deposition thickness for this point
+                surface_normal = mesh.face_normals[sample_face_indexes[point_index]]
+                # print('surface_normal', surface_normal)
 
-    return affected_points, intensities
+                # print('xy', x, y, 'd_rp', d_rp, 'rp', rp, 'current_tool_normal*normal_dist_h_dash', current_tool_normal*normal_dist_h_dash, 'normal_dist_h_dash', normal_dist_h_dash)
+                deposition_at_h = gun_model.deposition_intensity(x, y)
+                #if deposition_at_h>0.0:
+                #    plot_normals(ax, [current_tool_position], directions=[tool_pos_to_point / LA.norm(tool_pos_to_point)])
+                multiplier = ((gun_model.h/normal_dist_h_dash)**2) * np.dot(surface_normal, -current_tool_normal) * deposition_sim_time_resolution
+                #print(point_index, end =' ')
+                deposition_thickness[point_index] += multiplier*deposition_at_h
+                #print('deposition_thickness[point_index]', deposition_thickness[point_index])
+        #print('done2')
+        #print('affected_points', affected_points, '\nintensities', intensities)
+
+    # return affected_points, intensities
 
 
 print('all_tool_positions', all_tool_positions, '\ntool_normals', tool_normals)
 sample_tree = spatial.KDTree(samples)
 
 ray_mesh_intersector = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
+print('sample_tree.data', sample_tree.data.shape,sample_tree.data, sample_tree.data[-1])
 
-intersection_locations , index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(np.array(list(itertools.chain.from_iterable(all_tool_positions))), np.array(list(itertools.chain.from_iterable(tool_normals))))
-print(intersection_locations , index_ray, intersection_index_tri)
 
+j = 0
 for continuous_tool_positions,continuous_tool_normals  in zip(all_tool_positions, tool_normals):
-
+    intersection_locations, index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(
+        np.array(continuous_tool_positions),
+        np.array(continuous_tool_normals))
+    print('\n Processing paint pass', j, '/', len(all_tool_positions), ':',len(continuous_tool_positions), end = ' ')
+    j+=1
+    # print('\nsorted_intersection_locations', intersection_locations, index_ray)
+    sorted_intersection_locations = [loc for loc, _ in sorted(zip(intersection_locations,index_ray), key=lambda pair: pair[1])]
+    # print('\nsorted_intersection_locations', sorted_intersection_locations)
+    tool_major_axis_vecs = []
     for i, (current_tool_position, current_tool_normal) in enumerate(zip(continuous_tool_positions, continuous_tool_normals)):# [:int(len(continuous_tool_positions)/1.5)]
         # set minor axis direction to direction of movement
+
         current_tool_minor_axis_vec =  (continuous_tool_positions[i+1]-current_tool_position) if i<len(continuous_tool_positions)-1 else current_tool_position-continuous_tool_positions[i-1]
         current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
         current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
-        affected_points, intensities = affected_points_for_tool_position(samples, face_index, current_tool_position, current_tool_normal, current_tool_major_axis_vec, gun_model)
-        for index, intensity in zip(affected_points, intensities):
-            deposition_thickness[index] += intensity
+        tool_major_axis_vecs.append(current_tool_major_axis_vec)
+    affected_points_for_tool_positions(deposition_thickness, sample_tree,
+                                                                      sample_face_index, sorted_intersection_locations,
+                                                                      continuous_tool_positions, continuous_tool_normals,
+                                                                      tool_major_axis_vecs, gun_model)
+
+
         # calculate deposition for each of these points
 deposition_thickness = np.array(deposition_thickness)
-print('deposition_thickness min:', deposition_thickness.min()*1000, ' max', deposition_thickness.max()*1000, ' std:',  deposition_thickness.std(0)*1000, ' mean:', deposition_thickness.mean(0)*1000 )
+print('deposition_thickness', deposition_thickness)
+print('\ndeposition_thickness min:', deposition_thickness.min()*1000, ' max', deposition_thickness.max()*1000, ' std:',  deposition_thickness.std(0)*1000, ' mean:', deposition_thickness.mean(0)*1000 )
 ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=0.5, c=deposition_thickness)
 #ax.plot_trisurf(samples[:, 0], samples[:, 1], samples[:, 2])
 plt.show()
