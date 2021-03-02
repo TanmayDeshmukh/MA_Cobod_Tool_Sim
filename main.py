@@ -23,34 +23,38 @@ from trimesh import voxel as v
 
 mesh = trimesh.load_mesh('models/wall_type_1_vertical.STL')
 
-fig, ax = plt.subplots(subplot_kw={'projection': '3d'})
-ax.relim()
-# update ax.viewLim using the new dataLim
-ax.autoscale_view()
-min_lim = min(mesh.bounds[0, :])
-max_lim = max(mesh.bounds[1, :])
-ax.set_xlim3d(mesh.bounds[0][0] - 0.5, mesh.bounds[1][0] + 0.5)
-ax.set_ylim3d(mesh.bounds[0][1] - 0.5, mesh.bounds[1][1])
-ax.set_zlim3d(mesh.bounds[0][2], mesh.bounds[1][2] + 0.5)
+fig, axs = plt.subplots(nrows=2, ncols=2, subplot_kw={'projection': '3d'})
+for axr in axs:
+    for ax in axr:
+        ax.relim()
+        # update ax.viewLim using the new dataLim
+        ax.autoscale_view()
+        min_lim = min(mesh.bounds[0, :])
+        max_lim = max(mesh.bounds[1, :])
+        ax.set_xlim3d(mesh.bounds[0][0] - 0.5, mesh.bounds[1][0] + 0.5)
+        ax.set_ylim3d(mesh.bounds[0][1] - 0.5, mesh.bounds[1][1])
+        ax.set_zlim3d(mesh.bounds[0][2], mesh.bounds[1][2] + 0.5)
 
-limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz']);
-ax.set_box_aspect(np.ptp(limits, axis=1))
+        limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz']);
+        ax.set_box_aspect(np.ptp(limits, axis=1))
+
 fig.tight_layout()
-fig.subplots_adjust(left=-0.1, right=1.0, top=1.2, bottom=-0.2)
+fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
 
 original_mesh = copy.copy(mesh)
 scene = trimesh.Scene()
 # scene.add_geometry(original_mesh)
 
-""""
+
 ################ Full model #################
 mplot = mplot3d.art3d.Poly3DCollection(original_mesh.triangles)
 mplot.set_alpha(0.5)
 mplot.set_facecolor('grey')
-#mplot.set_edgecolor('gray')
+mplot.set_edgecolor('black')
 mplot.set_sort_zpos(-2)
-ax.add_collection3d(mplot)
-"""
+axs[0][0].add_collection3d(mplot)
+
+
 
 faces_mask = np.array([i for i, normal in enumerate(mesh.face_normals) if normal[1] < -0.5])
 print('faces_mask', faces_mask)
@@ -58,14 +62,14 @@ mesh.update_faces(faces_mask)
 mesh.visual.face_colors = [50, 150, 50, 255]
 scene.add_geometry(mesh)
 
-"""
+
 mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
 # mplot.set_alpha(0.6)
 mplot.set_facecolor('cornflowerblue')
 # mplot.set_edgecolor('k')
 mplot.set_sort_zpos(-1)
-ax.add_collection3d(mplot)
-"""
+axs[0][1].add_collection3d(mplot)
+
 
 y_extents = mesh.bounds[:, 0]
 # slice every .10 model units
@@ -197,6 +201,9 @@ for section_iter, section_path_group in enumerate(d3sections):
             all_normals[i] += all_normals.pop(i + 1)
             # print('popping in after', section_iter, len(all_verts_this_section))
 
+    for vert_group, norms in zip(all_verts_this_section, all_normals):
+        plot_path(axs[0][1], vertices=vert_group)
+        # plot_normals(axs[0][1], vertices=vert_group, directions=norms)
     # remove unnecessary intermediate points
     for vert_group, norms in zip(all_verts_this_section, all_normals):
         #if section_iter == 4:
@@ -207,15 +214,19 @@ for section_iter, section_path_group in enumerate(d3sections):
 
     all_tool_normals += all_normals
     all_normals = -np.array(list(itertools.chain.from_iterable(all_normals)))
-    plot_normals(ax, vertices=list(itertools.chain.from_iterable(all_verts_this_section)), directions=all_normals)
+
+    plot_normals(axs[1][0], vertices=list(itertools.chain.from_iterable(all_verts_this_section)), directions=all_normals)
+    plot_normals(axs[1][1], vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
+                 directions=all_normals)
 
     # Visualization of activated(g) and deactivated(k) tool travel within this section cut
     for i, ver_group in enumerate(all_verts_this_section):
-        plot_path(ax, vertices=ver_group)
+        plot_path(axs[1][0], vertices=ver_group)
+
         if i > 0:
-            plot_path(ax, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
+            plot_path(axs[1][0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
         for vertex in ver_group:
-            ax.text(vertex[0], vertex[1], vertex[2],
+            axs[1][0].text(vertex[0], vertex[1], vertex[2],
                     str(vert_iter), color='g', zorder=2)
             vert_iter += 1
 
@@ -229,7 +240,8 @@ for section_iter, section_path_group in enumerate(d3sections):
 # Vert groups may or may not be from the same section
 
 for i in range(int(len(section_end_vert_pairs) / 2)):
-    plot_path(ax, vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
+    plot_path(axs[0][1], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
+    plot_path(axs[1][0], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
 # path3ds = trimesh.path.path.Path3D(entities=new_entities, vertices = np., metadata = section_path_group.metadata)
 
 print('all_tool_locations\n', all_tool_locations, '\nall_tool_normals\n', all_tool_normals)
@@ -237,14 +249,14 @@ print('all_tool_locations\n', all_tool_locations, '\nall_tool_normals\n', all_to
 xx, yy = np.meshgrid(np.arange(original_mesh.bounds[0][0], original_mesh.bounds[1][0], 0.2),
                      np.arange(original_mesh.bounds[0][1], original_mesh.bounds[1][1], 0.2))
 z = np.full((len(xx), len(xx[0])), 0)
-ax.plot_surface(xx, yy, z, alpha=0.5)
+axs[0][1].plot_surface(xx, yy, z, alpha=0.5)
 
 combined3d = np.sum(d3sections)
 combined = np.sum(sections)
 
 
 constant_vel = 0.5 # m/s
-deposition_sim_time_resolution = 0.01 #s
+deposition_sim_time_resolution = 0.05 #s
 sample_dist = constant_vel*deposition_sim_time_resolution
 
 ############ Create pose list from constant time interval ##############
@@ -288,7 +300,7 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
 
 # combined3d.show()
 # scene.show()1
-number_of_samples = 10000
+number_of_samples = 5000
 samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
 deposition_thickness = [0.0]*len(samples)
 # ax.scatter(samples[:,0], samples[:, 1], samples[:, 2], s=0.1, c=deposition_thickness)
@@ -302,14 +314,14 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample
 
     # find points within sphere of radius of major axis
     #print('point_index : ')
-    k=1
+    #k=1
     for intersection_location, current_tool_position,current_tool_normal,current_tool_major_axis_vec in zip(sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes):
         #print('querying')
-        print(k, end='')
+        #print(k, end='')
         query_ball_points = sample_tree.query_ball_point(intersection_location , gun_model.b)
         # print('done', len(query_ball_points), query_ball_points)
-        print('.', end='')
-        k += 1
+        #print('.', end='')
+        #k += 1
         i = 0
         for point_index in query_ball_points:
             # print('point_index', point_index, i)
@@ -386,9 +398,9 @@ for continuous_tool_positions,continuous_tool_normals  in zip(all_tool_positions
 
         # calculate deposition for each of these points
 deposition_thickness = np.array(deposition_thickness)
-print('deposition_thickness', deposition_thickness)
+# print('deposition_thickness', deposition_thickness)
 print('\ndeposition_thickness min:', deposition_thickness.min()*1000, ' max', deposition_thickness.max()*1000, ' std:',  deposition_thickness.std(0)*1000, ' mean:', deposition_thickness.mean(0)*1000 )
-ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=0.5, c=deposition_thickness)
+axs[1][1].scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=0.5, c=deposition_thickness)
 #ax.plot_trisurf(samples[:, 0], samples[:, 1], samples[:, 2])
 plt.show()
 
