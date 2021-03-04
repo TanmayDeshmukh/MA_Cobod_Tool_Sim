@@ -22,7 +22,7 @@ from sklearn.decomposition import PCA
 from trimesh.exchange.binvox import voxelize_mesh
 from trimesh import voxel as v
 
-mesh = trimesh.load_mesh('models/wall_type_1_vertical.STL')
+mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 
 fig, axs = plt.subplots(nrows=2, ncols=2, subplot_kw={'projection': '3d'})
 for axr in axs:
@@ -77,21 +77,19 @@ y_extents = mesh.bounds[:, 0]
 y_levels = np.arange(*y_extents, step=0.2)  # -mesh.bounds[0][0]
 # https://github.com/mikedh/trimesh/issues/743#issuecomment-642157661
 # mesh.show()
-
-####### PCA ##########
-
 number_of_samples = 1000
 samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
 
+
+####### PCA ##########
+
 demeaned = mesh.vertices # - mesh.vertices.mean(axis=0)
-demeaned[:, 2] = 0
+#demeaned[:, 2] = 0
 print('demeaned', demeaned)
 # axs[1][0].scatter(demeaned[:, 0], demeaned[:, 1], demeaned[:, 2], s=0.5)
-demeaned = mesh.vertices - mesh.vertices.mean(axis=0)
+demeaned = mesh.vertices # - mesh.vertices.mean(axis=0)
 covariance_matrix = np.cov(demeaned.T)
 eigen_values, eigen_vectors = LA.eig(covariance_matrix) # returns normalized eig vectors
-print("Eigenvector: \n",eigen_vectors,"\n")
-print("Eigenvalues: \n", eigen_values, "\n")
 idx = eigen_values.argsort()[::-1]
 eigen_values = eigen_values[idx]
 eigen_vectors = eigen_vectors[:,idx]
@@ -99,34 +97,33 @@ eigen_vectors = eigen_vectors[:,idx]
 print("Eigenvector after sort: \n",eigen_vectors,"\n")
 print("Eigenvalues after sort: \n", eigen_values, "\n")
 
-print("Cov: \n",covariance_matrix,"\n")
-print("Cov norms: \n",LA.norm(covariance_matrix[0]),LA.norm(covariance_matrix[1]),LA.norm(covariance_matrix[2]),"\n")
-# plot_normals(axs[0][0], [[0, 0, 0] ], [eigen_vectors[0]])
-#eigen_vectors[0][2] = 0;
-#eigen_vectors[0] = -eigen_vectors[0]/LA.norm(eigen_vectors[0])
 
 start = np.min(mesh.vertices, axis=0)
+start[2] = 0
 stop = np.max(mesh.vertices, axis=0)
+stop[2] = 0
 length = LA.norm(stop-start)
-print('start ', start, stop, length)
+print('start ', start, stop, length, np.arange(0, length, step = 0.2))
 print("Eigenvector: \n",eigen_vectors,"\n")
-plot_normals(axs[1][0], [start ], [eigen_vectors[:,0]], norm_length = 2)
-plot_normals(axs[1][0], [start], [eigen_vectors[:, 1]], norm_length = 2, color='g')
-plot_normals(axs[1][0], [start], [eigen_vectors[:, 2]], norm_length = 2, color='b')
+plot_normals(axs[0][0], [start ], [eigen_vectors[:,0]], norm_length = length)
+# plot_normals(axs[0][0], [stop ], [-eigen_vectors[:,0]], norm_length = 2)
+plot_normals(axs[0][0], [start], [eigen_vectors[:, 1]], norm_length = 1, color='g')
+plot_normals(axs[0][0], [start], [eigen_vectors[:, 2]], norm_length = 1, color='b')
 start2 = start +0.5
 
 #plot_normals(axs[1][0], [start2 ], [covariance_matrix[0]/LA.norm(covariance_matrix[0])], norm_length = 1)
 #plot_normals(axs[1][0], [start2], [covariance_matrix[1]/LA.norm(covariance_matrix[1])], norm_length = 1, color='g')
 
-plt.show()
+# plt.show()
 print('eigen_vectors[:,0]', eigen_vectors[:,0])
 # find a bunch of parallel cross sections
 print('mesh.bounds', mesh.bounds, 'y_extents', y_extents, 'y_levels', y_levels)
-sections = mesh.section_multiplane(plane_origin=[0, 0, 0],
-                                   plane_normal=[1, 0, 0],
-                                   heights=y_levels)
+sections = mesh.section_multiplane(plane_origin=start-0.1,
+                                   plane_normal=eigen_vectors[:,0],
+                                   heights=np.arange(0, length, step = 0.2))
+print('sections', len(sections), [i for i in range(len(sections)) if sections[i]])
 sections = [s for s in sections if s]
-print('sections', len(sections), sections[0].__dict__)
+print('sections', len(sections))
 sectionsverts = [s.vertices for s in sections]
 # print('sectionsverts', sectionsverts)
 d3sections = [section.to_3D() for section in sections]
@@ -379,19 +376,19 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
 
     omega = np.arccos(np.clip(np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)), -1.0,
                               1.0))  # Clip so that we dont exceed -1.0, 1.0 due to float arithmatic errors
-    print('\nn0', n0, 'n1', n1, 'omega', omega, np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)))
+    # print('\nn0', n0, 'n1', n1, 'omega', omega, np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)))
     so = np.sin(omega)
     if omega in [0.0, np.inf, np.nan]:
-        print('SAME')
+        # print('SAME')
         # Two normals in the same direction, no need for slerp
         normals = [-normal_pair[0]] * int(n_samples)
     else:
-        print('not the same')
+        # print('not the same')
         # Spherical interpolation
         normals = [-((np.sin((1.0 - t) * omega) / so) * n0 + (np.sin(t * omega) / so) * n1) for t in
                    np.arange(0.0, 1.0, 1.0 / n_samples)]
     continuous_tool_normals = normals
-    print('new_norms', len(normals), len(continuous_tool_positions), n_samples, normals)
+    # print('new_norms', len(normals), len(continuous_tool_positions), n_samples, normals)
     # plot_normals(ax=ax, vertices=continuous_tool_positions, directions=normals)
     # plot_path(ax, continuous_tool_positions)
     # print('cont tool pos', continuous_tool_positions)
@@ -402,7 +399,7 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
 # scene.show()1
 deposition_thickness = [0.0] * len(samples)
 # ax.scatter(samples[:,0], samples[:, 1], samples[:, 2], s=0.1, c=deposition_thickness)
-print(sample_face_index)
+# print(sample_face_index)
 
 gun_model = SprayGunModel()
 
