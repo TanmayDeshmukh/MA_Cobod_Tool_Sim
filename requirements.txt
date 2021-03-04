@@ -10,3 +10,4 @@ rtree==0.9.7
 numpy-stl==2.15.0
 Cython>=0.26.0
 scipy
+scikit-learn

@@ -17,6 +17,7 @@ from spray_gun_model import *
 from scipy import spatial
 from mpl_toolkits import mplot3d
 from matplotlib import pyplot
+from sklearn.decomposition import PCA
 
 from trimesh.exchange.binvox import voxelize_mesh
 from trimesh import voxel as v
@@ -54,9 +55,13 @@ mplot.set_edgecolor('black')
 mplot.set_sort_zpos(-2)
 axs[0][0].add_collection3d(mplot)
 
-faces_mask = np.array([i for i, normal in enumerate(mesh.face_normals) if normal[1] < -0.5])
+
+faces_mask = np.array([i for i, normal in enumerate(mesh.face_normals) if normal[1] < -0.1 and normal[0] > -0.5])
 print('faces_mask', faces_mask)
 mesh.update_faces(faces_mask)
+mesh.remove_unreferenced_vertices()
+mesh.remove_infinite_values()
+# Remove all vertices in the current mesh which are not referenced by a face.
 mesh.visual.face_colors = [50, 150, 50, 255]
 scene.add_geometry(mesh)
 
@@ -72,13 +77,56 @@ y_extents = mesh.bounds[:, 0]
 y_levels = np.arange(*y_extents, step=0.2)  # -mesh.bounds[0][0]
 # https://github.com/mikedh/trimesh/issues/743#issuecomment-642157661
 # mesh.show()
+
+####### PCA ##########
+
+number_of_samples = 1000
+samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
+
+demeaned = mesh.vertices # - mesh.vertices.mean(axis=0)
+demeaned[:, 2] = 0
+print('demeaned', demeaned)
+# axs[1][0].scatter(demeaned[:, 0], demeaned[:, 1], demeaned[:, 2], s=0.5)
+demeaned = mesh.vertices - mesh.vertices.mean(axis=0)
+covariance_matrix = np.cov(demeaned.T)
+eigen_values, eigen_vectors = LA.eig(covariance_matrix) # returns normalized eig vectors
+print("Eigenvector: \n",eigen_vectors,"\n")
+print("Eigenvalues: \n", eigen_values, "\n")
+idx = eigen_values.argsort()[::-1]
+eigen_values = eigen_values[idx]
+eigen_vectors = eigen_vectors[:,idx]
+
+print("Eigenvector after sort: \n",eigen_vectors,"\n")
+print("Eigenvalues after sort: \n", eigen_values, "\n")
+
+print("Cov: \n",covariance_matrix,"\n")
+print("Cov norms: \n",LA.norm(covariance_matrix[0]),LA.norm(covariance_matrix[1]),LA.norm(covariance_matrix[2]),"\n")
+# plot_normals(axs[0][0], [[0, 0, 0] ], [eigen_vectors[0]])
+#eigen_vectors[0][2] = 0;
+#eigen_vectors[0] = -eigen_vectors[0]/LA.norm(eigen_vectors[0])
+
+start = np.min(mesh.vertices, axis=0)
+stop = np.max(mesh.vertices, axis=0)
+length = LA.norm(stop-start)
+print('start ', start, stop, length)
+print("Eigenvector: \n",eigen_vectors,"\n")
+plot_normals(axs[1][0], [start ], [eigen_vectors[:,0]], norm_length = 2)
+plot_normals(axs[1][0], [start], [eigen_vectors[:, 1]], norm_length = 2, color='g')
+plot_normals(axs[1][0], [start], [eigen_vectors[:, 2]], norm_length = 2, color='b')
+start2 = start +0.5
+
+#plot_normals(axs[1][0], [start2 ], [covariance_matrix[0]/LA.norm(covariance_matrix[0])], norm_length = 1)
+#plot_normals(axs[1][0], [start2], [covariance_matrix[1]/LA.norm(covariance_matrix[1])], norm_length = 1, color='g')
+
+plt.show()
+print('eigen_vectors[:,0]', eigen_vectors[:,0])
 # find a bunch of parallel cross sections
 print('mesh.bounds', mesh.bounds, 'y_extents', y_extents, 'y_levels', y_levels)
 sections = mesh.section_multiplane(plane_origin=[0, 0, 0],
                                    plane_normal=[1, 0, 0],
                                    heights=y_levels)
 sections = [s for s in sections if s]
-print('sections', sections, sections[0].__dict__)
+print('sections', len(sections), sections[0].__dict__)
 sectionsverts = [s.vertices for s in sections]
 # print('sectionsverts', sectionsverts)
 d3sections = [section.to_3D() for section in sections]
@@ -93,7 +141,8 @@ face_normals = [mesh.face_normals[segment_face_indices] for segment_face_indices
 
 def filter_sample_points(samples: [[]], normals: [[]], adjacent_tool_pose_angle_threshold: float,
                          adjacent_vertex_angle_threshold: float, inter_ver_dist_thresh: float):
-    print('samples', len(samples), 'normals', len(normals))
+    if section_iter == 4:
+        print('samples', len(samples), 'normals', len(normals))
     ele_popped = 0
     popped_indices = []
     for i, point in enumerate(samples[1:-1]):
@@ -107,15 +156,19 @@ def filter_sample_points(samples: [[]], normals: [[]], adjacent_tool_pose_angle_
         inter_normal_angle = np.arccos(np.clip(np.dot(normals[i - 1 - ele_popped], normals[i - ele_popped]), -1.0, 1.0))
         inter_vert_dist = LA.norm(a)
         inter_vert_angle = np.arccos(np.clip(np.dot(a, b) / (LA.norm(a) * LA.norm(b)), -1.0, 1.0))
-        print('iter vert dist', inter_vert_dist, 'angle', np.degrees(inter_vert_angle))
+        if section_iter == 4:
+            print('iter vert dist', inter_vert_dist, 'angle', np.degrees(inter_vert_angle))
         if (
                 inter_normal_angle < adjacent_tool_pose_angle_threshold) or inter_vert_angle <= adjacent_vertex_angle_threshold:  # inter_vert_dist < inter_ver_dist_thresh  or
             # We dont't threshold inter-vert distances because elimination only depends on normal angles and how collinear the intermediate point is
+            if section_iter == 4:
+                print('i + 1 - ele_popped', i + 1 - ele_popped, 'ele_popped', popped_indices)
             samples.pop(i + 1 - ele_popped)
             normals.pop((i + 1 - ele_popped))
             popped_indices.append(i + 1)
             ele_popped += 1
-    print('popped_indices', popped_indices)
+    if section_iter == 4:
+        print('popped_indices', popped_indices)
     return popped_indices
 
 
@@ -123,6 +176,22 @@ def angle_between_vectors(a, b):
     return np.arccos(np.clip(np.dot(a, b), -1.0, 1.0))
 
 
+def combine_subpaths(all_verts_this_section, all_normals, vert_dist_threshold, adjacent_tool_pose_angle_threshold):
+    ele_popped = 0
+    for i in range(len(all_verts_this_section) - 1):
+        print('all_verts_this_section', len(all_verts_this_section[i-ele_popped]), len(all_normals[i-ele_popped]))
+        inter_vert_dist = LA.norm(np.array(all_verts_this_section[i-ele_popped][-1]) - np.array(all_verts_this_section[i + 1-ele_popped][0]))
+        # inter_vert_angle = trimesh.geometry.vector_angle(np.array([all_normals[i][-1], all_normals[i+1][0]]))
+        inter_vert_angle = np.arccos(np.clip(np.dot(np.array(all_normals[i-ele_popped][-1]), np.array(all_normals[i+1-ele_popped][0])), -1.0, 1.0))
+        if (inter_vert_dist < vert_dist_threshold and inter_vert_angle < adjacent_tool_pose_angle_threshold):
+            if section_iter == 4:
+                print('popping in ', section_iter, len(all_verts_this_section))
+            all_verts_this_section[i + 1-ele_popped].pop(0)  # remove first vertex in next group
+            all_verts_this_section[i-ele_popped] += all_verts_this_section.pop(i + 1-ele_popped)  # append next group to current group
+            all_normals[i + 1-ele_popped].pop(0)
+            all_normals[i-ele_popped] += all_normals.pop(i + 1-ele_popped)
+            # print('popping in after', section_iter, len(all_verts_this_section))
+            ele_popped += 1
 # filter_sample_points([[0,1,1], [0, 1,0], [0, 2, 0], [0, 3, 0], [0, 2, 1]], np.radians(10.0), 1.2)
 
 print('mesh attrib', len(mesh.vertex_normals))
@@ -131,7 +200,7 @@ vert_dist_threshold = 0.05
 adjacent_tool_pose_angle_threshold = np.radians(10.0)
 adjacent_vertex_angle_threshold = np.radians(10.0)
 vert_iter = 0
-direction_flag = False
+direction_flag = True
 section_end_vert_pairs = []
 all_tool_locations = []
 all_tool_normals = []
@@ -149,15 +218,18 @@ for section_iter, section_path_group in enumerate(d3sections):
     # face_index]', len(face_indices), face_indices, '\nlen section_path_group.vertices',
     # len(section_path_group.vertices))
     face_count_up = 0
+    if section_iter == 4:
+        print('\n section_path_group.entities', len(section_path_group.entities))
     for subpath_iter, subpath in enumerate(section_path_group.entities):
         translated_verts = []
         ori_verts = []
         normals = []
+        if section_iter == 4:
+            print('subpath.points', len(subpath.points))
         for line_segment_index in range(len(subpath.points) - 1):
             this_face_normal = mesh.face_normals[face_indices[face_count_up]]
             face_count_up += 1
-            normals.append(this_face_normal)
-            normals.append(this_face_normal)
+
             vert1_index, vert2_index = subpath.points[line_segment_index], subpath.points[line_segment_index + 1]
             vert1, vert2 = section_path_group.vertices[vert1_index], section_path_group.vertices[vert2_index]
             ori_verts.append(vert1), ori_verts.append(vert2)
@@ -167,10 +239,14 @@ for section_iter, section_path_group in enumerate(d3sections):
 
             translated_verts.append([x for x in new_ver1])
             translated_verts.append([x for x in new_ver2])
+            normals.append(this_face_normal)
+            normals.append(this_face_normal)
 
         # check first 2 z values and correct the subpaths' direction
+
         if (translated_verts[0][2] > translated_verts[1][2]) ^ direction_flag:
             translated_verts.reverse()
+            normals.reverse()
 
         # if all_verts:
         # plot traversal without spray
@@ -181,33 +257,51 @@ for section_iter, section_path_group in enumerate(d3sections):
         translated_verts = np.array(translated_verts)
         normals = np.array(normals)
 
-    # Correct the order of subpaths first
+    if section_iter == 4:
+        temp_iter = 0
+        print('direction_flag', direction_flag)
+        for i in range(len(all_verts_this_section)):
+            plot_path(axs[0][0], all_verts_this_section[i])
+            for vertex in all_verts_this_section[i]:
+                axs[0][0].text(vertex[0]+0.05, vertex[1], vertex[2],
+                               str(temp_iter), color='r', zorder=2)
+                temp_iter += 1
+        print('all_verts_this_section', len(all_verts_this_section))
+
+    # Combine subpaths if endpoints are close enough
+    combine_subpaths(all_verts_this_section, all_normals, vert_dist_threshold, adjacent_tool_pose_angle_threshold)
+
+    # Correct the order of subpaths first (sorting)
     for i in range(len(all_verts_this_section)):
-        for j in range(i):
-            if ((not direction_flag) and all_verts_this_section[j][0][2] > all_verts_this_section[j + 1][-1][2]) or \
-                    all_verts_this_section[j + 1][0][2] > \
-                    all_verts_this_section[j][-1][2]:
-                # print('flipping', all_verts_this_section[j], all_verts_this_section[j + 1])
+        for j in range(len(all_verts_this_section)-1):
+            if ((all_verts_this_section[j][0][2] > all_verts_this_section[j + 1][0][2]) ^ direction_flag):
+                ##((all_verts_this_section[j][0][2] < all_verts_this_section[j + 1][0][2]) and direction_flag) or \
+                #    (all_verts_this_section[j][0][2] > all_verts_this_section[j + 1][0][2] and not direction_flag):
+                if section_iter == 4:
+                    print('flipping', j, j + 1, 'because', all_verts_this_section[j][-1], all_verts_this_section[j + 1][0] )
                 all_verts_this_section[j], all_verts_this_section[j + 1] = all_verts_this_section[j + 1], \
                                                                            all_verts_this_section[j]
+                all_normals[j], all_normals[j + 1] = all_normals[j + 1], all_normals[j]
+        if section_iter == 4:
+            temp_iter = 0;
+            for k in range(len(all_verts_this_section)):
+                for vertex in all_verts_this_section[k]:
+                    axs[0][0].text(vertex[0]+0.15 +i/10, vertex[1], vertex[2],
+                                   str(temp_iter), color='g', zorder=2)
+                    temp_iter += 1
+    # if section_iter==4:
+    #     for i in range(len(all_verts_this_section)):
+    #       print('after sorting', len(all_verts_this_section[i]), 'norms', len(all_normals[i]))
 
     # Combine subpaths if endpoints are close enough. This must be done before removing unnecessary intermediate points
     # because the end points of the sub paths themselves might be unnecessary
-    for i in range(len(all_verts_this_section) - 1):
-        inter_vert_dist = LA.norm(np.array(all_verts_this_section[i][-1]) - np.array(all_verts_this_section[i + 1][0]))
-        # inter_vert_angle = trimesh.geometry.vector_angle(np.array([all_normals[i][-1], all_normals[i+1][0]]))
-        inter_vert_angle = np.arccos(np.clip(np.dot(np.array(normals[i - 1]), np.array(normals[i])), -1.0, 1.0))
-        if (inter_vert_dist < vert_dist_threshold and inter_vert_angle < adjacent_tool_pose_angle_threshold):
-            # print('popping in ', section_iter, len(all_verts_this_section))
-            all_verts_this_section[i + 1].pop(0)  # remove first vertex in next group
-            all_verts_this_section[i] += all_verts_this_section.pop(i + 1)  # append next group to current group
-            all_normals[i + 1].pop(0)
-            all_normals[i] += all_normals.pop(i + 1)
-            # print('popping in after', section_iter, len(all_verts_this_section))
+    combine_subpaths(all_verts_this_section, all_normals, vert_dist_threshold, adjacent_tool_pose_angle_threshold)
+
 
     for vert_group, norms in zip(all_verts_this_section, all_normals):
         plot_path(axs[0][1], vertices=vert_group)
-        # plot_normals(axs[0][1], vertices=vert_group, directions=norms)
+
+            # plot_normals(axs[0][1], vertices=vert_group, directions=norms)
     # remove unnecessary intermediate points
     for vert_group, norms in zip(all_verts_this_section, all_normals):
         # if section_iter == 4:
@@ -228,8 +322,8 @@ for section_iter, section_path_group in enumerate(d3sections):
     for i, ver_group in enumerate(all_verts_this_section):
         plot_path(axs[1][0], vertices=ver_group)
 
-        if i > 0:
-            plot_path(axs[1][0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
+        #if i > 0:
+        #    plot_path(axs[1][0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
         for vertex in ver_group:
             axs[1][0].text(vertex[0], vertex[1], vertex[2],
                            str(vert_iter), color='g', zorder=2)
@@ -306,8 +400,6 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
 
 # combined3d.show()
 # scene.show()1
-number_of_samples = 5000
-samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
 deposition_thickness = [0.0] * len(samples)
 # ax.scatter(samples[:,0], samples[:, 1], samples[:, 2], s=0.1, c=deposition_thickness)
 print(sample_face_index)
@@ -415,5 +507,5 @@ deposition_thickness = np.array(deposition_thickness)
 print('\ndeposition_thickness min:', deposition_thickness.min() * 1000, ' max', deposition_thickness.max() * 1000,
       ' std:', deposition_thickness.std(0) * 1000, ' mean:', deposition_thickness.mean(0) * 1000)
 axs[1][1].scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=0.5, c=deposition_thickness)
-# ax.plot_trisurf(samples[:, 0], samples[:, 1], samples[:, 2])
+
 plt.show()

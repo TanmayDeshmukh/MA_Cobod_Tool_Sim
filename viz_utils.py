@@ -26,21 +26,17 @@ def plot_path(ax, vertices: [[]], color="g"):
                     lw=1, arrowstyle="-|>", color=color)
         a.set_zorder(5)
         ax.add_artist(a)
-    vertices = np.transpose(vertices)
-    #ax.plot(vertices[0], vertices[1], vertices[2])
 
 
-def plot_normals(ax, vertices: [[]], directions: [[]]) -> None:
+def plot_normals(ax, vertices: [[]], directions: [[]], norm_length = 0.15, color='r') -> None:
     vertices = np.array(vertices)
     directions = np.array(directions)
-    norm_length = 0.15
+
     for i in range(len(vertices)):
         end = vertices[i] + norm_length*directions[i]
         a = Arrow3D([vertices[i][0], end[0]],
                     [vertices[i][1], end[1]],
                     [vertices[i][2], end[2]], mutation_scale=10,
-                    lw=1, arrowstyle="-|>", color="r")
+                    lw=1, arrowstyle="-|>", color=color)
         a.set_zorder(5)
         ax.add_artist(a)
-    # vertices = np.transpose(vertices)
-    #ax.plot(vertices[0], vertices[1], vertices[2])
