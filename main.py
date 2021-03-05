@@ -24,6 +24,15 @@ from trimesh import voxel as v
 
 mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 
+number_of_samples = 5000
+slicing_distance = 0.3
+constant_vel = 0.5  # m/s
+deposition_sim_time_resolution = 0.8  # s
+standoff_dist = 0.2
+vert_dist_threshold = 0.05
+adjacent_tool_pose_angle_threshold = np.radians(10.0)
+adjacent_vertex_angle_threshold = np.radians(10.0)
+
 fig, axs = plt.subplots(nrows=2, ncols=2, subplot_kw={'projection': '3d'})
 for axr in axs:
     for ax in axr:
@@ -36,7 +45,7 @@ for axr in axs:
         ax.set_ylim3d(mesh.bounds[0][1] - 0.5, mesh.bounds[1][1])
         ax.set_zlim3d(mesh.bounds[0][2], mesh.bounds[1][2] + 0.5)
 
-        limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz']);
+        limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz'])
         ax.set_box_aspect(np.ptp(limits, axis=1))
 
 fig.tight_layout()
@@ -55,7 +64,6 @@ mplot.set_edgecolor('black')
 mplot.set_sort_zpos(-2)
 axs[0][0].add_collection3d(mplot)
 
-
 faces_mask = np.array([i for i, normal in enumerate(mesh.face_normals) if normal[1] < -0.1 and normal[0] > -0.5])
 print('faces_mask', faces_mask)
 mesh.update_faces(faces_mask)
@@ -72,69 +80,45 @@ mplot.set_facecolor('cornflowerblue')
 mplot.set_sort_zpos(-1)
 axs[0][1].add_collection3d(mplot)
 
-y_extents = mesh.bounds[:, 0]
-# slice every .10 model units
-y_levels = np.arange(*y_extents, step=0.2)  # -mesh.bounds[0][0]
-# https://github.com/mikedh/trimesh/issues/743#issuecomment-642157661
-# mesh.show()
-number_of_samples = 1000
-samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
+################ PCA ##################
 
-
-####### PCA ##########
-
-demeaned = mesh.vertices # - mesh.vertices.mean(axis=0)
-#demeaned[:, 2] = 0
-print('demeaned', demeaned)
-# axs[1][0].scatter(demeaned[:, 0], demeaned[:, 1], demeaned[:, 2], s=0.5)
-demeaned = mesh.vertices # - mesh.vertices.mean(axis=0)
-covariance_matrix = np.cov(demeaned.T)
-eigen_values, eigen_vectors = LA.eig(covariance_matrix) # returns normalized eig vectors
+covariance_matrix = np.cov(mesh.vertices.T)
+eigen_values, eigen_vectors = LA.eig(covariance_matrix)  # returns normalized eig vectors
 idx = eigen_values.argsort()[::-1]
 eigen_values = eigen_values[idx]
-eigen_vectors = eigen_vectors[:,idx]
+eigen_vectors = eigen_vectors[:, idx]
 
-print("Eigenvector after sort: \n",eigen_vectors,"\n")
+print("Eigenvector after sort: \n", eigen_vectors, "\n")
 print("Eigenvalues after sort: \n", eigen_values, "\n")
 
-
-start = np.min(mesh.vertices, axis=0)
+start = np.min(mesh.vertices, axis=0)  + eigen_vectors[:, 2] * (
+            eigen_values[2] * 10) # - eigen_vectors[:, 0] * slicing_distance / 2
 start[2] = 0
-stop = np.max(mesh.vertices, axis=0)
+stop = np.max(mesh.vertices, axis=0) + eigen_vectors[:, 0] * slicing_distance / 2
 stop[2] = 0
-length = LA.norm(stop-start)
-print('start ', start, stop, length, np.arange(0, length, step = 0.2))
-print("Eigenvector: \n",eigen_vectors,"\n")
-plot_normals(axs[0][0], [start ], [eigen_vectors[:,0]], norm_length = length)
+length = LA.norm(stop - start)
+print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
+print("Eigenvector: \n", eigen_vectors, "\n")
+plot_normals(axs[0][0], [start], [eigen_vectors[:, 0]], norm_length=length)
 # plot_normals(axs[0][0], [stop ], [-eigen_vectors[:,0]], norm_length = 2)
-plot_normals(axs[0][0], [start], [eigen_vectors[:, 1]], norm_length = 1, color='g')
-plot_normals(axs[0][0], [start], [eigen_vectors[:, 2]], norm_length = 1, color='b')
-start2 = start +0.5
-
-#plot_normals(axs[1][0], [start2 ], [covariance_matrix[0]/LA.norm(covariance_matrix[0])], norm_length = 1)
-#plot_normals(axs[1][0], [start2], [covariance_matrix[1]/LA.norm(covariance_matrix[1])], norm_length = 1, color='g')
+plot_normals(axs[0][0], [start], [eigen_vectors[:, 1]], norm_length=1, color='g')
+plot_normals(axs[0][0], [start], [eigen_vectors[:, 2]], norm_length=1, color='b')
 
 # plt.show()
-print('eigen_vectors[:,0]', eigen_vectors[:,0])
+print('eigen_vectors[:,0]', eigen_vectors[:, 0])
 # find a bunch of parallel cross sections
-print('mesh.bounds', mesh.bounds, 'y_extents', y_extents, 'y_levels', y_levels)
-sections = mesh.section_multiplane(plane_origin=start-0.1,
-                                   plane_normal=eigen_vectors[:,0],
-                                   heights=np.arange(0, length, step = 0.2))
-print('sections', len(sections), [i for i in range(len(sections)) if sections[i]])
+sections = mesh.section_multiplane(plane_origin=start,
+                                   plane_normal=eigen_vectors[:, 0],
+                                   heights=np.arange(0, length, step=slicing_distance))
 sections = [s for s in sections if s]
 print('sections', len(sections))
+
 sectionsverts = [s.vertices for s in sections]
-# print('sectionsverts', sectionsverts)
 d3sections = [section.to_3D() for section in sections]
 
 face_indices = [path.metadata['face_index'] for path in sections]
-d3sectionsverts = [s.vertices for s in d3sections]
-# print('face_indices', face_indices)
 face_normals = [mesh.face_normals[segment_face_indices] for segment_face_indices in face_indices]
 
-
-# print('face_normals', face_normals)
 
 def filter_sample_points(samples: [[]], normals: [[]], adjacent_tool_pose_angle_threshold: float,
                          adjacent_vertex_angle_threshold: float, inter_ver_dist_thresh: float):
@@ -176,28 +160,32 @@ def angle_between_vectors(a, b):
 def combine_subpaths(all_verts_this_section, all_normals, vert_dist_threshold, adjacent_tool_pose_angle_threshold):
     ele_popped = 0
     for i in range(len(all_verts_this_section) - 1):
-        print('all_verts_this_section', len(all_verts_this_section[i-ele_popped]), len(all_normals[i-ele_popped]))
-        inter_vert_dist = LA.norm(np.array(all_verts_this_section[i-ele_popped][-1]) - np.array(all_verts_this_section[i + 1-ele_popped][0]))
+        print('all_verts_this_section', len(all_verts_this_section[i - ele_popped]), len(all_normals[i - ele_popped]))
+        inter_vert_dist = LA.norm(np.array(all_verts_this_section[i - ele_popped][-1]) - np.array(
+            all_verts_this_section[i + 1 - ele_popped][0]))
         # inter_vert_angle = trimesh.geometry.vector_angle(np.array([all_normals[i][-1], all_normals[i+1][0]]))
-        inter_vert_angle = np.arccos(np.clip(np.dot(np.array(all_normals[i-ele_popped][-1]), np.array(all_normals[i+1-ele_popped][0])), -1.0, 1.0))
+        inter_vert_angle = np.arccos(
+            np.clip(np.dot(np.array(all_normals[i - ele_popped][-1]), np.array(all_normals[i + 1 - ele_popped][0])),
+                    -1.0, 1.0))
         if (inter_vert_dist < vert_dist_threshold and inter_vert_angle < adjacent_tool_pose_angle_threshold):
             if section_iter == 4:
                 print('popping in ', section_iter, len(all_verts_this_section))
-            all_verts_this_section[i + 1-ele_popped].pop(0)  # remove first vertex in next group
-            all_verts_this_section[i-ele_popped] += all_verts_this_section.pop(i + 1-ele_popped)  # append next group to current group
-            all_normals[i + 1-ele_popped].pop(0)
-            all_normals[i-ele_popped] += all_normals.pop(i + 1-ele_popped)
+            all_verts_this_section[i + 1 - ele_popped].pop(0)  # remove first vertex in next group
+            all_verts_this_section[i - ele_popped] += all_verts_this_section.pop(
+                i + 1 - ele_popped)  # append next group to current group
+            all_normals[i + 1 - ele_popped].pop(0)
+            all_normals[i - ele_popped] += all_normals.pop(i + 1 - ele_popped)
             # print('popping in after', section_iter, len(all_verts_this_section))
             ele_popped += 1
+
+
 # filter_sample_points([[0,1,1], [0, 1,0], [0, 2, 0], [0, 3, 0], [0, 2, 1]], np.radians(10.0), 1.2)
 
+
 print('mesh attrib', len(mesh.vertex_normals))
-standoff_dist = 0.2
-vert_dist_threshold = 0.05
-adjacent_tool_pose_angle_threshold = np.radians(10.0)
-adjacent_vertex_angle_threshold = np.radians(10.0)
+
 vert_iter = 0
-direction_flag = True
+direction_flag = False
 section_end_vert_pairs = []
 all_tool_locations = []
 all_tool_normals = []
@@ -260,7 +248,7 @@ for section_iter, section_path_group in enumerate(d3sections):
         for i in range(len(all_verts_this_section)):
             plot_path(axs[0][0], all_verts_this_section[i])
             for vertex in all_verts_this_section[i]:
-                axs[0][0].text(vertex[0]+0.05, vertex[1], vertex[2],
+                axs[0][0].text(vertex[0] + 0.05, vertex[1], vertex[2],
                                str(temp_iter), color='r', zorder=2)
                 temp_iter += 1
         print('all_verts_this_section', len(all_verts_this_section))
@@ -270,12 +258,13 @@ for section_iter, section_path_group in enumerate(d3sections):
 
     # Correct the order of subpaths first (sorting)
     for i in range(len(all_verts_this_section)):
-        for j in range(len(all_verts_this_section)-1):
+        for j in range(len(all_verts_this_section) - 1):
             if ((all_verts_this_section[j][0][2] > all_verts_this_section[j + 1][0][2]) ^ direction_flag):
                 ##((all_verts_this_section[j][0][2] < all_verts_this_section[j + 1][0][2]) and direction_flag) or \
                 #    (all_verts_this_section[j][0][2] > all_verts_this_section[j + 1][0][2] and not direction_flag):
                 if section_iter == 4:
-                    print('flipping', j, j + 1, 'because', all_verts_this_section[j][-1], all_verts_this_section[j + 1][0] )
+                    print('flipping', j, j + 1, 'because', all_verts_this_section[j][-1],
+                          all_verts_this_section[j + 1][0])
                 all_verts_this_section[j], all_verts_this_section[j + 1] = all_verts_this_section[j + 1], \
                                                                            all_verts_this_section[j]
                 all_normals[j], all_normals[j + 1] = all_normals[j + 1], all_normals[j]
@@ -283,7 +272,7 @@ for section_iter, section_path_group in enumerate(d3sections):
             temp_iter = 0;
             for k in range(len(all_verts_this_section)):
                 for vertex in all_verts_this_section[k]:
-                    axs[0][0].text(vertex[0]+0.15 +i/10, vertex[1], vertex[2],
+                    axs[0][0].text(vertex[0] + 0.15 + i / 10, vertex[1], vertex[2],
                                    str(temp_iter), color='g', zorder=2)
                     temp_iter += 1
     # if section_iter==4:
@@ -294,11 +283,10 @@ for section_iter, section_path_group in enumerate(d3sections):
     # because the end points of the sub paths themselves might be unnecessary
     combine_subpaths(all_verts_this_section, all_normals, vert_dist_threshold, adjacent_tool_pose_angle_threshold)
 
-
     for vert_group, norms in zip(all_verts_this_section, all_normals):
         plot_path(axs[0][1], vertices=vert_group)
 
-            # plot_normals(axs[0][1], vertices=vert_group, directions=norms)
+        # plot_normals(axs[0][1], vertices=vert_group, directions=norms)
     # remove unnecessary intermediate points
     for vert_group, norms in zip(all_verts_this_section, all_normals):
         # if section_iter == 4:
@@ -319,7 +307,7 @@ for section_iter, section_path_group in enumerate(d3sections):
     for i, ver_group in enumerate(all_verts_this_section):
         plot_path(axs[1][0], vertices=ver_group)
 
-        #if i > 0:
+        # if i > 0:
         #    plot_path(axs[1][0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
         for vertex in ver_group:
             axs[1][0].text(vertex[0], vertex[1], vertex[2],
@@ -351,8 +339,6 @@ axs[0][1].plot_surface(xx, yy, z, alpha=0.5)
 combined3d = np.sum(d3sections)
 combined = np.sum(sections)
 
-constant_vel = 0.5  # m/s
-deposition_sim_time_resolution = 0.05  # s
 sample_dist = constant_vel * deposition_sim_time_resolution
 
 ############ Create pose list from constant time interval ##############
@@ -364,14 +350,14 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
     movement_dist = LA.norm(movement_direction)
     movement_direction = movement_direction / movement_dist  # normalizing to get only direction vector
     continuous_tool_positions, continuous_tool_normals = [point_1], []
-    n_samples = int(movement_dist / sample_dist) + 2
+    n_samples = int(movement_dist / sample_dist) + 1
     # print('new vals: ', sample_dist, end =' ')
-    while len(continuous_tool_positions) < n_samples - 1:
+    while len(continuous_tool_positions) < n_samples:
         next_position = continuous_tool_positions[-1] + movement_direction * sample_dist
         continuous_tool_positions.append(next_position)
         # print(len(continuous_tool_positions))
         # print(next_position, LA.norm(point_2 - continuous_tool_positions[-1]), end=' ')
-    continuous_tool_positions.append(point_2)
+    #continuous_tool_positions.append(point_2)
     n0, n1 = np.array(normal_pair[0]), np.array(normal_pair[1])
 
     omega = np.arccos(np.clip(np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)), -1.0,
@@ -379,11 +365,9 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
     # print('\nn0', n0, 'n1', n1, 'omega', omega, np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)))
     so = np.sin(omega)
     if omega in [0.0, np.inf, np.nan]:
-        # print('SAME')
         # Two normals in the same direction, no need for slerp
         normals = [-normal_pair[0]] * int(n_samples)
     else:
-        # print('not the same')
         # Spherical interpolation
         normals = [-((np.sin((1.0 - t) * omega) / so) * n0 + (np.sin(t * omega) / so) * n1) for t in
                    np.arange(0.0, 1.0, 1.0 / n_samples)]
@@ -397,7 +381,6 @@ for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
 
 # combined3d.show()
 # scene.show()1
-deposition_thickness = [0.0] * len(samples)
 # ax.scatter(samples[:,0], samples[:, 1], samples[:, 2], s=0.1, c=deposition_thickness)
 # print(sample_face_index)
 
@@ -411,38 +394,69 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample
     intensities = []
 
     # find points within sphere of radius of major axis
-    # print('point_index : ')
+    print('\n affected_points_for_tool_positions', len(sorted_intersection_locations), len(tool_positions), len(tool_normals), len(tool_major_axes))
     # k=1
     for intersection_location, current_tool_position, current_tool_normal, current_tool_major_axis_vec in zip(
             sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes):
-        # print('querying')
+
         # print(k, end='')
-        query_ball_points = sample_tree.query_ball_point(intersection_location, gun_model.b)
+        query_ball_points = sample_tree.query_ball_point(intersection_location, gun_model.a if gun_model.a>gun_model.b else gun_model.b)
         # print('done', len(query_ball_points), query_ball_points)
         # print('.', end='')
         # k += 1
         i = 0
+        # print('query_ball_points', len(query_ball_points), query_ball_points)
         for point_index in query_ball_points:
             # print('point_index', point_index, i)
             point = sample_tree.data[point_index]
 
             tool_pos_to_point = point - current_tool_position
             tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
-            # tool_pos_to_point /= LA.norm(tool_pos_to_point)
-            angle_normal_to_point = angle_between_vectors(tool_pos_to_point / LA.norm(tool_pos_to_point),
+            tool_pos_to_point /= tool_pos_to_point_dist
+
+            angle_normal_to_point = angle_between_vectors(tool_pos_to_point,
                                                           current_tool_normal)
+
+            # plot_normals(axs[1][1], [current_tool_position], [current_tool_major_axis_vec], norm_length=0.4, color='g')
+            # plot_normals(axs[1][1], [current_tool_position], [current_tool_minor_axis_vec], norm_length=0.3, color='b')
+
             normal_dist_h_dash = np.cos(angle_normal_to_point) * tool_pos_to_point_dist
-            rp = tool_pos_to_point - current_tool_normal * normal_dist_h_dash
-            angle_major_axis_to_point = angle_between_vectors(rp / LA.norm(rp), current_tool_major_axis_vec)
+
+            rp = tool_pos_to_point*tool_pos_to_point_dist - current_tool_normal * normal_dist_h_dash
+            # rp /= LA.norm(rp)
+            angle_minor_axis_to_point = angle_between_vectors(rp/LA.norm(rp) , current_tool_minor_axis_vec)
             # rmax = gun_model.a*gun_model.b*np.sqrt((1/ (gun_model.b**2+(gun_model.a*np.tan(angle_major_axis_to_point))**2))**2 +
             #                                       (1/(gun_model.a**2+gun_model.b**2/np.tan(angle_major_axis_to_point)**2))**2)
             # rmax = np.sqrt(((gun_model.a) * np.sin(angle_major_axis_to_point)) ** 2 + (
             #            (gun_model.b) * np.cos(angle_major_axis_to_point)) ** 2)
             # alpha_max = np.arctan(rmax/normal_dist_h_dash)
+            # print('dot prod ', np.dot(rp, current_tool_normal))
             d_rp = LA.norm(rp)
-            x, y = d_rp * np.sin(angle_major_axis_to_point), d_rp * np.cos(angle_major_axis_to_point)
-
+            x, y = d_rp * np.sin(angle_minor_axis_to_point), d_rp * np.cos(angle_minor_axis_to_point)
+            #print('xy', x, y)
             if gun_model.check_point_validity(x, y):
+                #print('valid')
+
+                if normal_dist_h_dash<0.148:
+                    plot_normals(axs[1][1], [current_tool_position], [tool_pos_to_point], color='r',
+                                 norm_length=tool_pos_to_point_dist)
+                    plot_normals(axs[1][1], [current_tool_position], [current_tool_normal],
+                                 norm_length=normal_dist_h_dash,
+                                 color='g')
+                    print('angle_normal_to_point', angle_normal_to_point, 'np.cos()', np.cos(angle_normal_to_point), 'tool_pos_to_point_dist', tool_pos_to_point_dist)
+                """
+                
+                print('\ncurrent_tool_minor_axis_vec', current_tool_minor_axis_vec)
+                print('current_tool_major_axis_vec', current_tool_major_axis_vec)
+                print('angle_normal_to_point', np.degrees(angle_normal_to_point))
+                print('normal_dist_h_dash', normal_dist_h_dash)
+                
+                print('xy', x, y)
+                plot_normals(axs[1][1], [current_tool_normal * normal_dist_h_dash + current_tool_position], [rp],
+                             norm_length=0.3, color='b')
+                
+                
+                """
                 # if angle_normal_to_point < alpha_max:
                 # print('alpha_max', np.degrees(alpha_max), 'rmax', rmax, 'normal_dist_h_dash', normal_dist_h_dash,
                 #      'angle_normal_to_point', np.degrees(angle_normal_to_point))
@@ -455,25 +469,27 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample
                 deposition_at_h = gun_model.deposition_intensity(x, y)
                 # if deposition_at_h>0.0:
                 #    plot_normals(ax, [current_tool_position], directions=[tool_pos_to_point / LA.norm(tool_pos_to_point)])
-                multiplier = ((gun_model.h / normal_dist_h_dash) ** 2) * np.dot(surface_normal,
-                                                                                -current_tool_normal) * deposition_sim_time_resolution
-                # print(point_index, end =' ')
-                deposition_thickness[point_index] += multiplier * deposition_at_h
+                multiplier = ((gun_model.h / tool_pos_to_point_dist) ) * np.dot(surface_normal, tool_pos_to_point)/(np.dot(tool_pos_to_point, -current_tool_normal)**3)
+                print('multiplier', multiplier,'normal_dist_h_dash',normal_dist_h_dash)
+                deposition_thickness[point_index] += multiplier * deposition_at_h * deposition_sim_time_resolution
                 # print('deposition_thickness[point_index]', deposition_thickness[point_index])
+            #    print('invalid')
         # print('done2')
         # print('affected_points', affected_points, '\nintensities', intensities)
 
     # return affected_points, intensities
 
 
-print('all_tool_positions', all_tool_positions, '\ntool_normals', tool_normals)
+# print('all_tool_positions', all_tool_positions, '\ntool_normals', tool_normals)
+samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
+deposition_thickness = [0.0] * len(samples)
 sample_tree = spatial.KDTree(samples)
 
 ray_mesh_intersector = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
 print('sample_tree.data', sample_tree.data.shape, sample_tree.data, sample_tree.data[-1])
 
 j = 0
-for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions, tool_normals):
+for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions[:1], tool_normals[:1]):
     intersection_locations, index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(
         np.array(continuous_tool_positions),
         np.array(continuous_tool_normals))
@@ -491,13 +507,18 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
         current_tool_minor_axis_vec = (continuous_tool_positions[i + 1] - current_tool_position) if i < len(
             continuous_tool_positions) - 1 else current_tool_position - continuous_tool_positions[i - 1]
         current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
+
         current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
+
         tool_major_axis_vecs.append(current_tool_major_axis_vec)
+
     affected_points_for_tool_positions(deposition_thickness, sample_tree,
                                        sample_face_index, sorted_intersection_locations,
                                        continuous_tool_positions, continuous_tool_normals,
                                        tool_major_axis_vecs, gun_model)
-
+    sorted_intersection_locations = np.array(sorted_intersection_locations)
+    axs[1][1].scatter(sorted_intersection_locations[:, 0], sorted_intersection_locations[:, 1],
+                      sorted_intersection_locations[:, 2], s=2.0, c=['r'] * len(sorted_intersection_locations))
     # calculate deposition for each of these points
 deposition_thickness = np.array(deposition_thickness)
 # print('deposition_thickness', deposition_thickness)
