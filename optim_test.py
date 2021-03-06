@@ -4,8 +4,8 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import LinearLocator, FormatStrFormatter
 import time
 
-resolution = 0.002
-orientation = 0  # np.pi / 4.0
+resolution = 0.004
+orientation = np.pi / 4.0  # np.pi / 4.0
 
 
 class SprayGunModel:

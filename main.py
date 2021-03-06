@@ -16,22 +16,26 @@ from viz_utils import *
 from spray_gun_model import *
 from scipy import spatial
 from mpl_toolkits import mplot3d
-from matplotlib import pyplot
-from sklearn.decomposition import PCA
+from overlap_optimisation import *
+import json
 
 from trimesh.exchange.binvox import voxelize_mesh
 from trimesh import voxel as v
 
 mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 
-number_of_samples = 5000
-slicing_distance = 0.3
-constant_vel = 0.5  # m/s
-deposition_sim_time_resolution = 0.8  # s
-standoff_dist = 0.2
-vert_dist_threshold = 0.05
+number_of_samples               = 5000
+constant_vel                    = 0.2  # m/s
+deposition_sim_time_resolution  = 0.2  # s
+tool_motion_time_resolution     = 0.2
+standoff_dist                   = 0.2
+vert_dist_threshold             = 0.05
 adjacent_tool_pose_angle_threshold = np.radians(10.0)
 adjacent_vertex_angle_threshold = np.radians(10.0)
+direction_flag = False
+gun_model = SprayGunModel()
+slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0)
+
 
 fig, axs = plt.subplots(nrows=2, ncols=2, subplot_kw={'projection': '3d'})
 for axr in axs:
@@ -92,9 +96,9 @@ print("Eigenvector after sort: \n", eigen_vectors, "\n")
 print("Eigenvalues after sort: \n", eigen_values, "\n")
 
 start = np.min(mesh.vertices, axis=0)  + eigen_vectors[:, 2] * (
-            eigen_values[2] * 10) # - eigen_vectors[:, 0] * slicing_distance / 2
+            eigen_values[2] * 10)  + eigen_vectors[:, 0] * slicing_distance / 5
 start[2] = 0
-stop = np.max(mesh.vertices, axis=0) + eigen_vectors[:, 0] * slicing_distance / 2
+stop = np.max(mesh.vertices, axis=0) + eigen_vectors[:, 0] * slicing_distance
 stop[2] = 0
 length = LA.norm(stop - start)
 print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
@@ -185,7 +189,6 @@ def combine_subpaths(all_verts_this_section, all_normals, vert_dist_threshold, a
 print('mesh attrib', len(mesh.vertex_normals))
 
 vert_iter = 0
-direction_flag = False
 section_end_vert_pairs = []
 all_tool_locations = []
 all_tool_normals = []
@@ -235,7 +238,7 @@ for section_iter, section_path_group in enumerate(d3sections):
 
         # if all_verts:
         # plot traversal without spray
-        # plot_path(ax, vertices=[all_verts[-1], filtered_trnaslated_verts[0]], color='k')
+        # plot_path(axs[1][0], vertices=[translated_verts[-1], all_verts_this_section[0]], color='k')
         # insert into appropriate place
         all_verts_this_section.append(translated_verts)
         all_normals.append(normals)
@@ -307,8 +310,9 @@ for section_iter, section_path_group in enumerate(d3sections):
     for i, ver_group in enumerate(all_verts_this_section):
         plot_path(axs[1][0], vertices=ver_group)
 
-        # if i > 0:
-        #    plot_path(axs[1][0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
+        if i > 0:
+            plot_path(axs[1][0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
+            plot_path(axs[0][1], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
         for vertex in ver_group:
             axs[1][0].text(vertex[0], vertex[1], vertex[2],
                            str(vert_iter), color='g', zorder=2)
@@ -339,53 +343,45 @@ axs[0][1].plot_surface(xx, yy, z, alpha=0.5)
 combined3d = np.sum(d3sections)
 combined = np.sum(sections)
 
-sample_dist = constant_vel * deposition_sim_time_resolution
+def interpolate_tool_motion(all_tool_locations, all_tool_normals, sample_dist):
+    all_tool_positions, tool_normals = [], []
+    for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
+        point_1, point_2 = np.array(position_pair[0]), np.array(position_pair[1])
+        movement_direction = (point_2 - point_1)
+        movement_dist = LA.norm(movement_direction)
+        movement_direction = movement_direction / movement_dist  # normalizing to get only direction vector
+        continuous_tool_positions, continuous_tool_normals = [point_1], []
+        n_samples = int(movement_dist / sample_dist) + 1
+        # print('new vals: ', sample_dist, end =' ')
+        while len(continuous_tool_positions) < n_samples:
+            next_position = continuous_tool_positions[-1] + movement_direction * sample_dist
+            continuous_tool_positions.append(next_position)
+            # print(len(continuous_tool_positions))
+            # print(next_position, LA.norm(point_2 - continuous_tool_positions[-1]), end=' ')
+        #continuous_tool_positions.append(point_2)
+        n0, n1 = np.array(normal_pair[0]), np.array(normal_pair[1])
 
-############ Create pose list from constant time interval ##############
-all_tool_positions = []
-tool_normals = []
-for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
-    point_1, point_2 = np.array(position_pair[0]), np.array(position_pair[1])
-    movement_direction = (point_2 - point_1)
-    movement_dist = LA.norm(movement_direction)
-    movement_direction = movement_direction / movement_dist  # normalizing to get only direction vector
-    continuous_tool_positions, continuous_tool_normals = [point_1], []
-    n_samples = int(movement_dist / sample_dist) + 1
-    # print('new vals: ', sample_dist, end =' ')
-    while len(continuous_tool_positions) < n_samples:
-        next_position = continuous_tool_positions[-1] + movement_direction * sample_dist
-        continuous_tool_positions.append(next_position)
-        # print(len(continuous_tool_positions))
-        # print(next_position, LA.norm(point_2 - continuous_tool_positions[-1]), end=' ')
-    #continuous_tool_positions.append(point_2)
-    n0, n1 = np.array(normal_pair[0]), np.array(normal_pair[1])
+        omega = np.arccos(np.clip(np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)), -1.0,
+                                  1.0))  # Clip so that we dont exceed -1.0, 1.0 due to float arithmatic errors
+        # print('\nn0', n0, 'n1', n1, 'omega', omega, np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)))
+        so = np.sin(omega)
+        if omega in [0.0, np.inf, np.nan]:
+            # Two normals in the same direction, no need for slerp
+            continuous_tool_normals = [-normal_pair[0]] * int(n_samples)
+            # print('const', len(normals), len(continuous_tool_positions))
+        else:
+            # Spherical interpolation
 
-    omega = np.arccos(np.clip(np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)), -1.0,
-                              1.0))  # Clip so that we dont exceed -1.0, 1.0 due to float arithmatic errors
-    # print('\nn0', n0, 'n1', n1, 'omega', omega, np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)))
-    so = np.sin(omega)
-    if omega in [0.0, np.inf, np.nan]:
-        # Two normals in the same direction, no need for slerp
-        normals = [-normal_pair[0]] * int(n_samples)
-    else:
-        # Spherical interpolation
-        normals = [-((np.sin((1.0 - t) * omega) / so) * n0 + (np.sin(t * omega) / so) * n1) for t in
-                   np.arange(0.0, 1.0, 1.0 / n_samples)]
-    continuous_tool_normals = normals
-    # print('new_norms', len(normals), len(continuous_tool_positions), n_samples, normals)
-    # plot_normals(ax=ax, vertices=continuous_tool_positions, directions=normals)
-    # plot_path(ax, continuous_tool_positions)
-    # print('cont tool pos', continuous_tool_positions)
+            continuous_tool_normals = [-((np.sin((1.0 - t) * omega) / so) * n0 + (np.sin(t * omega) / so) * n1) for t in
+                       np.arange(0.0, 1.0, 1.0 / n_samples)]
+            # print('slerp', len(normals), len(continuous_tool_positions))
+        while len(continuous_tool_normals)>len(continuous_tool_positions):
+            continuous_tool_normals.pop(-1)
+        if len(continuous_tool_normals)<len(continuous_tool_positions):
+            continuous_tool_normals.append(continuous_tool_normals[-1])
 
-    all_tool_positions.append(continuous_tool_positions), tool_normals.append(continuous_tool_normals)
-
-# combined3d.show()
-# scene.show()1
-# ax.scatter(samples[:,0], samples[:, 1], samples[:, 2], s=0.1, c=deposition_thickness)
-# print(sample_face_index)
-
-gun_model = SprayGunModel()
-
+        all_tool_positions.append(continuous_tool_positions), tool_normals.append(continuous_tool_normals)
+    return all_tool_positions, tool_normals
 
 def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample_face_indexes,
                                        sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes,
@@ -394,7 +390,7 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample
     intensities = []
 
     # find points within sphere of radius of major axis
-    print('\n affected_points_for_tool_positions', len(sorted_intersection_locations), len(tool_positions), len(tool_normals), len(tool_major_axes))
+    # print('\n affected_points_for_tool_positions', len(sorted_intersection_locations), len(tool_positions), len(tool_normals), len(tool_major_axes))
     # k=1
     for intersection_location, current_tool_position, current_tool_normal, current_tool_major_axis_vec in zip(
             sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes):
@@ -436,7 +432,7 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample
             #print('xy', x, y)
             if gun_model.check_point_validity(x, y):
                 #print('valid')
-
+                """
                 if normal_dist_h_dash<0.148:
                     plot_normals(axs[1][1], [current_tool_position], [tool_pos_to_point], color='r',
                                  norm_length=tool_pos_to_point_dist)
@@ -444,7 +440,7 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample
                                  norm_length=normal_dist_h_dash,
                                  color='g')
                     print('angle_normal_to_point', angle_normal_to_point, 'np.cos()', np.cos(angle_normal_to_point), 'tool_pos_to_point_dist', tool_pos_to_point_dist)
-                """
+                
                 
                 print('\ncurrent_tool_minor_axis_vec', current_tool_minor_axis_vec)
                 print('current_tool_major_axis_vec', current_tool_major_axis_vec)
@@ -470,7 +466,7 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample
                 # if deposition_at_h>0.0:
                 #    plot_normals(ax, [current_tool_position], directions=[tool_pos_to_point / LA.norm(tool_pos_to_point)])
                 multiplier = ((gun_model.h / tool_pos_to_point_dist) ) * np.dot(surface_normal, tool_pos_to_point)/(np.dot(tool_pos_to_point, -current_tool_normal)**3)
-                print('multiplier', multiplier,'normal_dist_h_dash',normal_dist_h_dash)
+                # print('multiplier', multiplier,'normal_dist_h_dash',normal_dist_h_dash)
                 deposition_thickness[point_index] += multiplier * deposition_at_h * deposition_sim_time_resolution
                 # print('deposition_thickness[point_index]', deposition_thickness[point_index])
             #    print('invalid')
@@ -480,16 +476,37 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, sample
     # return affected_points, intensities
 
 
-# print('all_tool_positions', all_tool_positions, '\ntool_normals', tool_normals)
+# Writing to a JSON file
+file_data = []
+
+sample_dist = constant_vel * deposition_sim_time_resolution
+all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, all_tool_normals, sample_dist)
+for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions, tool_normals):
+    time_stamp = 0
+    for i, (current_tool_position, current_tool_normal) in enumerate(
+            zip(continuous_tool_positions, continuous_tool_normals)):
+        dict = {"time_stamp": time_stamp,
+                "z_rotation": 0.0,
+                "spray_on": False if i==len(continuous_tool_positions)-1 else True,
+                "tool_position": list(current_tool_position),
+                "tool_normal": list(current_tool_normal),
+                }
+        file_data.append(dict)
+        time_stamp += tool_motion_time_resolution
+
+with open('tool_positions.json', 'w') as outfile:
+    json.dump(file_data, outfile, indent=2)
+
 samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
 deposition_thickness = [0.0] * len(samples)
 sample_tree = spatial.KDTree(samples)
-
 ray_mesh_intersector = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
-print('sample_tree.data', sample_tree.data.shape, sample_tree.data, sample_tree.data[-1])
 
+############ Create pose list from constant time interval ##############
+sim_sample_dist = constant_vel * deposition_sim_time_resolution
+all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, all_tool_normals, sim_sample_dist)
 j = 0
-for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions[:1], tool_normals[:1]):
+for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions, tool_normals):
     intersection_locations, index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(
         np.array(continuous_tool_positions),
         np.array(continuous_tool_normals))
@@ -517,10 +534,11 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
                                        continuous_tool_positions, continuous_tool_normals,
                                        tool_major_axis_vecs, gun_model)
     sorted_intersection_locations = np.array(sorted_intersection_locations)
-    axs[1][1].scatter(sorted_intersection_locations[:, 0], sorted_intersection_locations[:, 1],
-                      sorted_intersection_locations[:, 2], s=2.0, c=['r'] * len(sorted_intersection_locations))
+    # axs[1][1].scatter(sorted_intersection_locations[:, 0], sorted_intersection_locations[:, 1],
+    #                   sorted_intersection_locations[:, 2], s=2.0, c=['r'] * len(sorted_intersection_locations))
     # calculate deposition for each of these points
 deposition_thickness = np.array(deposition_thickness)
+# np.nan_to_num(deposition_thickness, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
 # print('deposition_thickness', deposition_thickness)
 print('\ndeposition_thickness min:', deposition_thickness.min() * 1000, ' max', deposition_thickness.max() * 1000,
       ' std:', deposition_thickness.std(0) * 1000, ' mean:', deposition_thickness.mean(0) * 1000)

@@ -1,0 +1,30 @@
+[
+  {
+    "time_stamp"    : 0.0,
+    "tool_position" : [0.10, 0.05, 0.01 ],
+    "tool_normal"   : [0.01, 0.50, 0.30 ],
+    "z_rotation"    : 1.576,
+    "spray_on"      : true
+  },
+  {
+    "time_stamp"    : 0.03,
+    "tool_position" : [0.10, 0.05, 0.11 ],
+    "tool_normal"   : [0.01, 0.50, 0.30 ],
+    "z_rotation"    : 1.576,
+    "spray_on"      : true
+  },
+  {
+    "time_stamp"    : 0.06,
+    "tool_position" : [0.10, 0.05, 0.21 ],
+    "tool_normal"   : [0.01, 0.50, 0.30 ],
+    "z_rotation"    : 1.576,
+    "spray_on"      : false
+  },
+  {
+    "time_stamp"    : 0.09,
+    "tool_position" : [0.10, 0.05, 0.31 ],
+    "tool_normal"   : [0.01, 0.50, 0.30 ],
+    "z_rotation"    : 1.576,
+    "spray_on"      : false
+  }
+]
