@@ -28,7 +28,7 @@ def plot_path(ax, vertices: [[]], color="g"):
         ax.add_artist(a)
 
 
-def plot_normals(ax, vertices: [[]], directions: [[]], norm_length = 0.2, color='r') -> None:
+def plot_normals(ax, vertices: [[]], directions: [[]], norm_length = 0.25, color='r') -> None:
     vertices = np.array(vertices)
     directions = np.array(directions)
 

@@ -11,3 +11,6 @@ numpy-stl==2.15.0
 Cython>=0.26.0
 scipy
 scikit-learn
+numpy~=1.20.0
+pyrender~=0.1.43
+pandas~=1.2.2
