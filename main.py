@@ -19,13 +19,14 @@ from mpl_toolkits import mplot3d
 from overlap_optimisation import *
 from processing_utils import *
 import json
+from matplotlib.animation import FuncAnimation
 
 mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 
 constant_vel                    = 0.2  # m/s
 deposition_sim_time_resolution  = 0.2  # s
-tool_motion_time_resolution     = 0.2  # s
-standoff_dist                   = 0.5  # m
+tool_motion_time_resolution     = 0.8  # s
+standoff_dist                   = 0.4  # m
 vert_dist_threshold             = 0.05 # m
 adjacent_tool_pose_angle_threshold = np.radians(10.0)
 adjacent_vertex_angle_threshold = np.radians(10.0)
@@ -37,11 +38,8 @@ canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(0))
 # gun_model.visualize_deposition(canvas, X_grid, Y_grid)
 slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
 get_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0)
-get_1d_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0, True)
+# get_1d_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0, True)
 
-final_rendering_fig, final_rendering_ax = plt.subplots(subplot_kw={'projection': '3d'})
-final_rendering_fig.tight_layout()
-final_rendering_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
 fig, axs = plt.subplots(nrows=2, ncols=2, subplot_kw={'projection': '3d'})
 for axr in axs:
     for ax in axr:
@@ -84,7 +82,7 @@ mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
 mplot.set_facecolor('cornflowerblue')
 # mplot.set_edgecolor('k')
 mplot.set_sort_zpos(-1)
-axs[0][1].add_collection3d(mplot)
+axs[1][1].add_collection3d(mplot)
 
 # ############################### PCA #################################
 
@@ -222,17 +220,17 @@ for section_iter, section_path_group in enumerate(d3sections):
 
     plot_normals(axs[1][0], vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
                  directions=all_normals)
-    plot_normals(axs[1][1], vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
-                 directions=all_normals)
+    # plot_normals(axs[1][1], vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
+    #              directions=all_normals)
 
     # Visualization of activated(g) and deactivated(k) tool travel within this section cut
     for i, ver_group in enumerate(all_verts_this_section):
         plot_path(axs[1][0], vertices=ver_group)
-        plot_path(axs[1][1], vertices=ver_group)
+        # plot_path(axs[1][1], vertices=ver_group)
 
         if i > 0:
             plot_path(axs[1][0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
-            plot_path(final_rendering_ax, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
+            plot_path(axs[1][1], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
         for vertex in ver_group:
             axs[1][0].text(vertex[0], vertex[1], vertex[2],
                            str(vert_iter), color='g', zorder=2)
@@ -261,11 +259,16 @@ xx, yy = np.meshgrid(np.arange(original_mesh.bounds[0][0], original_mesh.bounds[
                      np.arange(original_mesh.bounds[0][1], original_mesh.bounds[1][1], 0.2))
 z = np.full((len(xx), len(xx[0])), 0)
 axs[0][1].plot_surface(xx, yy, z, alpha=0.5)
+
+
+final_rendering_fig, final_rendering_ax = plt.subplots(subplot_kw={'projection': '3d'})
+final_rendering_fig.tight_layout()
+final_rendering_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
+
 # Writing to a JSON file
 file_data = []
 ray_mesh_intersector = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
-
-sample_dist = constant_vel * deposition_sim_time_resolution
+sample_dist = constant_vel * tool_motion_time_resolution
 all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, all_tool_normals, sample_dist)
 for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions, tool_normals):
     time_stamp = 0
@@ -278,9 +281,8 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
                                          sorted(zip(intersection_locations, index_ray), key=lambda pair: pair[1])]
         continuous_tool_positions, continuous_tool_normals = limit_tool_positions(continuous_tool_positions, np.array(
             sorted_intersection_locations), continuous_tool_normals)
-        plot_path(final_rendering_ax, continuous_tool_positions)
-        plot_normals(final_rendering_ax, continuous_tool_positions, continuous_tool_normals)
-
+        plot_path(axs[1][1], continuous_tool_positions)
+        plot_normals(axs[1][1], continuous_tool_positions, continuous_tool_normals)
         dict = {"time_stamp": time_stamp,
                 "z_rotation": 0.0,
                 "spray_on": False if i==len(continuous_tool_positions)-1 else True,
@@ -289,11 +291,10 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
                 }
         file_data.append(dict)
         time_stamp += tool_motion_time_resolution
-
 with open('tool_positions.json', 'w') as outfile:
     json.dump(file_data, outfile, indent=2)
 
-samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
+samples, sample_face_indexes = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
 deposition_thickness = [0.0] * len(samples)
 sample_tree = spatial.KDTree(samples)
 
@@ -307,43 +308,84 @@ all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, a
 deposition_thickness = np.array(deposition_thickness)
 scatter = final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=5.0)#, c=deposition_thickness, cmap='coolwarm')
 print('scatter', scatter)
-j = 0
+
+total_tool_positions = [len(continuous_tool_positions) for continuous_tool_positions in all_tool_positions]
+paint_pass, j = 0, 0
+
+sorted_intersection_locations = []
+continuous_tool_positions = []
+continuous_tool_normals = []
+tool_major_axis_vecs = []
+tool_minor_axis_vecs = []
+def update(frame_number):
+    global paint_pass, j,sorted_intersection_locations, continuous_tool_positions, continuous_tool_normals, \
+        tool_major_axis_vecs, tool_minor_axis_vecs, deposition_thickness, sample_tree, mesh, scatter, deposition_sim_time_resolution, gun_model
+
+    if paint_pass >= len(total_tool_positions):
+
+        animation.event_source.stop()
+    else:
+        if j==0:
+            continuous_tool_positions, continuous_tool_normals = all_tool_positions[paint_pass], tool_normals[paint_pass]
+            intersection_locations, index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(
+                np.array(continuous_tool_positions),
+                np.array(continuous_tool_normals))
+            # print('\nSorting', total_tool_positions[paint_pass])
+            sorted_intersection_locations = [loc for loc, _ in
+                                             sorted(zip(intersection_locations, index_ray), key=lambda pair: pair[1])]
+            continuous_tool_positions, continuous_tool_normals = limit_tool_positions(continuous_tool_positions, np.array(
+                sorted_intersection_locations), continuous_tool_normals)
+            # plot_path(final_rendering_ax, continuous_tool_positions)
+            # plot_normals(final_rendering_ax, continuous_tool_positions, continuous_tool_normals)
+            tool_major_axis_vecs, tool_minor_axis_vecs = [], []
+            # print('Estim axis vecs')
+            current_tool_minor_axis_vec=[]
+            current_tool_major_axis_vec=[]
+            for pos_index, (current_tool_position, current_tool_normal) in enumerate(
+                    zip(continuous_tool_positions, continuous_tool_normals)):
+                # set minor axis direction to direction of movement
+
+                if pos_index < len(continuous_tool_positions)-1:
+                    # if angle_between_vectors(current_tool_normal, continuous_tool_normals[pos_index+1]) > 0:
+                    current_tool_minor_axis_vec = (continuous_tool_positions[pos_index + 1] - current_tool_position)+continuous_tool_normals[pos_index+1] - current_tool_normal
+                    current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
+
+                    current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
+
+                    current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
+                tool_major_axis_vecs.append(current_tool_major_axis_vec)
+                tool_minor_axis_vecs.append(current_tool_minor_axis_vec)
+
+            #plot_normals(final_rendering_ax, continuous_tool_positions, tool_minor_axis_vecs, norm_length=0.3, color='g')
+
+        # print('new_position', j, 'pass', paint_pass)
+        affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
+                                           sample_face_indexes, sorted_intersection_locations[j],
+                                           continuous_tool_positions[j], continuous_tool_normals[j],
+                                           tool_major_axis_vecs[j], tool_minor_axis_vecs[j],
+                                           gun_model, deposition_sim_time_resolution, scatter)
+
+        j += 1
+        if j >= total_tool_positions[paint_pass]:
+            paint_pass +=1
+            j=0
+
+
+""" 
 for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions[:], tool_normals[:]):
-    intersection_locations, index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(
-        np.array(continuous_tool_positions),
-        np.array(continuous_tool_normals))
-    title_text = 'Processing paint pass '+ str(j+1)+ '/'+ str(len(all_tool_positions)) + '..'
-    final_rendering_fig.canvas.set_window_title(title_text)
-    plt.draw()
-    plt.pause(0.001)
-    print('\n', title_text, ':', len(continuous_tool_positions), end=' ')
-    j += 1
-    sorted_intersection_locations = [loc for loc, _ in
-                                     sorted(zip(intersection_locations, index_ray), key=lambda pair: pair[1])]
+    
 
-    tool_major_axis_vecs, tool_minor_axis_vecs = [], []
-    for i, (current_tool_position, current_tool_normal) in enumerate(
-            zip(continuous_tool_positions, continuous_tool_normals)):
-        # set minor axis direction to direction of movement
-        current_tool_minor_axis_vec = (continuous_tool_positions[i + 1] - current_tool_position) if i < len(
-            continuous_tool_positions) - 1 else current_tool_position - continuous_tool_positions[i - 1]
-        current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
-        current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
-
-        tool_major_axis_vecs.append(current_tool_major_axis_vec)
-        tool_minor_axis_vecs.append(current_tool_minor_axis_vec)
-
+    print('\nfiltering')
     continuous_tool_positions, continuous_tool_normals = limit_tool_positions(continuous_tool_positions, np.array(sorted_intersection_locations), continuous_tool_normals)
-
+    print('Filtered')
     affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh,
                                        sample_face_index, sorted_intersection_locations,
                                        continuous_tool_positions, continuous_tool_normals,
                                        tool_major_axis_vecs, tool_minor_axis_vecs,
                                        gun_model, deposition_sim_time_resolution, scatter)
 
-    sorted_intersection_locations = np.array(sorted_intersection_locations)
 print('deposition_thickness', deposition_thickness)
-
+"""
 
 # scatter.set_clim(vmin=min(deposition_thickness), vmax=max(deposition_thickness))
 # scatter.set_color()
@@ -352,5 +394,8 @@ print('\ndeposition_thickness min:', deposition_thickness.min() * 1000, ' max', 
 
 
 final_rendering_fig.canvas.set_window_title('Paint sim')
-plt.show()
 
+animation = FuncAnimation(final_rendering_fig, update, interval= 1, blit=False)
+print('after anim')
+plt.show()
+print('after plot')

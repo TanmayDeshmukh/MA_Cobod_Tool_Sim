@@ -92,7 +92,7 @@ def get_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation_
     # shape = [max(a.shape[axis] for a in (g1_profile, g1_profile)) for axis in range(len(g1_profile.shape))]
     full_canvas_1_padded = np.pad(canvas_1, pad_width=((0,0), (0, no_bins_1)), mode='constant', constant_values=0)
     full_canvas_2_padded = np.pad(canvas_2, pad_width=((0,0), (no_bins_2, 0)), mode='constant', constant_values=0)
-    combined = full_canvas_1_padded+full_canvas_2_padded
+    # combined = full_canvas_1_padded+full_canvas_2_padded
     # plt.plot(combined)
     # plt.show()
     new_y_arr = (np.arange(0, full_canvas_1_padded.shape[0], 1) - full_canvas_1_padded.shape[0]/2)*min_res

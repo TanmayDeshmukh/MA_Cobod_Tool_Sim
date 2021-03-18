@@ -1,6 +1,8 @@
 import numpy as np
 from numpy import linalg as LA
 import matplotlib
+import time
+from viz_utils import *
 
 def filter_sample_points(samples: [[]], normals: [[]], adjacent_tool_pose_angle_threshold: float,
                          adjacent_vertex_angle_threshold: float, inter_ver_dist_thresh: float):
@@ -32,7 +34,7 @@ def angle_between_vectors(a, b):
     return np.arccos(np.clip(np.dot(a, b), -1.0, 1.0))
 
 
-def combine_subpaths(all_verts_this_section, all_normals, vert_dist_threshold, adjacent_tool_pose_angle_threshold):
+def combine_subpaths(all_verts_this_section: [], all_normals: [], vert_dist_threshold: float, adjacent_tool_pose_angle_threshold: float):
     ele_popped = 0
     for i in range(len(all_verts_this_section) - 1):
         inter_vert_dist = LA.norm(np.array(all_verts_this_section[i - ele_popped][-1]) - np.array(
@@ -51,7 +53,7 @@ def combine_subpaths(all_verts_this_section, all_normals, vert_dist_threshold, a
             ele_popped += 1
 
 
-def interpolate_tool_motion(all_tool_locations, all_tool_normals, sample_dist):
+def interpolate_tool_motion(all_tool_locations: [], all_tool_normals: [], sample_dist: float):
     all_tool_positions, tool_normals = [], []
     for position_pair, normal_pair in zip(all_tool_locations, all_tool_normals):
         point_1, point_2 = np.array(position_pair[0]), np.array(position_pair[1])
@@ -82,21 +84,25 @@ def interpolate_tool_motion(all_tool_locations, all_tool_normals, sample_dist):
         all_tool_positions.append(continuous_tool_positions), tool_normals.append(continuous_tool_normals)
     return all_tool_positions, tool_normals
 
-def closest_reachable_position(tool_position: []) -> []:
+
+def closest_reachable_position(tool_position: [], x_lims: [], y_lims: [], z_lims: []) -> np.ndarray:
     tool_position = np.array(tool_position)
-    new_pos = np.array([tool_position[0], tool_position[1], np.clip(tool_position[2], 0.7, 1.5)])
+    new_pos = np.array([np.clip(tool_position[0], x_lims[0], x_lims[1]),
+                        np.clip(tool_position[1], y_lims[0], y_lims[1]),
+                        np.clip(tool_position[2], z_lims[0], z_lims[1])])
     return new_pos
 
+
 def can_tool_reach_position(tool_position: []):
-    new_pos = closest_reachable_position(tool_position)
-    if (np.array(tool_position)== new_pos).all():
+    new_pos = closest_reachable_position(tool_position, [0.6, 2], [0.4, 1.5], [0.6, 1] )
+    if (np.array(tool_position) == new_pos).all():
         return True, new_pos
     else:
         # print('old', tool_position, 'new_pos', new_pos)
         return False, new_pos
 
 
-def limit_tool_positions(all_tool_positions, surface_projected_positions,  all_tool_normals ):
+def limit_tool_positions(all_tool_positions, surface_projected_positions,  all_tool_normals ) -> (np.ndarray, np.ndarray):
     constrained_tool_positions, constrained_tool_normals = [], []
 
     for desired_tool_position, surface_projected_position, desired_tool_normal in zip(all_tool_positions, surface_projected_positions, all_tool_normals):
@@ -110,19 +116,67 @@ def limit_tool_positions(all_tool_positions, surface_projected_positions,  all_t
     return constrained_tool_positions, constrained_tool_normals
 
 
+def affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
+                                       sample_face_indexes, intersection_location,
+                                       tool_position, tool_normal,
+                                       tool_major_axis_vec, tool_minor_axis_vec,
+                                       gun_model, deposition_sim_time_resolution, scatter):
+    query_ball_points = sample_tree.query_ball_point(intersection_location,
+                                                     (gun_model.b if gun_model.a <= gun_model.b else gun_model.a) * 1.0)
+    # print('query_ball_points', len(query_ball_points))
+    # print('intersection_location', intersection_location, 'tool_position', tool_position, 'tool_normal', tool_normal)
+    k = 0
+    for point_index in query_ball_points:
+        point = sample_tree.data[point_index]
+        # print(k, end=' ')
+        k += 1
+        tool_pos_to_point = point - tool_position
+        tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
+        tool_pos_to_point /= tool_pos_to_point_dist
+
+        angle_normal_to_point = angle_between_vectors(tool_pos_to_point, tool_normal)
+        normal_dist_h_dash = np.cos(angle_normal_to_point) * tool_pos_to_point_dist
+        rp = tool_pos_to_point * tool_pos_to_point_dist - tool_normal * normal_dist_h_dash
+        angle_minor_axis_to_point = angle_between_vectors(rp / LA.norm(rp), tool_minor_axis_vec)
+        d_rp = LA.norm(rp)
+        # plot_normals(final_rendering_ax, [tool_position] , [tool_pos_to_point], norm_length=tool_pos_to_point_dist)
+        x, y = d_rp * np.sin(angle_minor_axis_to_point), d_rp * np.cos(angle_minor_axis_to_point)
+        if gun_model.check_point_validity(x, y):
+
+            # Estimate deposition thickness for this point
+            surface_normal = mesh.face_normals[sample_face_indexes[point_index]]
+            deposition_at_h = gun_model.deposition_intensity(x, y)
+            multiplier = ((gun_model.h / tool_pos_to_point_dist) ** 2) * np.dot(surface_normal,
+                                                                                tool_pos_to_point) / (
+                             np.dot(tool_pos_to_point, -tool_normal))
+            # multiplier = ((gun_model.h / tool_pos_to_point_dist))
+            # multiplier = 1
+            # print('yes', multiplier)
+            deposition_thickness[point_index] += multiplier * deposition_at_h * deposition_sim_time_resolution
+    # print('\nDrawing', max(deposition_thickness))
+    n = matplotlib.colors.Normalize(vmin=min(deposition_thickness),
+                                    vmax=max(deposition_thickness))
+    m = matplotlib.cm.ScalarMappable(norm=n, cmap='YlOrBr_r')
+    scatter.set_color(m.to_rgba(deposition_thickness))
+    scatter._facecolor3d = scatter.get_facecolor()
+    scatter._edgecolor3d = scatter.get_edgecolor()
+    # print('\ndone')
+
 def affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh, sample_face_indexes,
                                        sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes, tool_minor_axes,
                                        gun_model, deposition_sim_time_resolution, scatter):
     # find points within sphere of radius of major axis
     for intersection_location, current_tool_position, current_tool_normal, current_tool_major_axis_vec, current_tool_minor_axis_vec in zip(
             sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes, tool_minor_axes):
+        print('query_ball')
         query_ball_points = sample_tree.query_ball_point(intersection_location,
                                                          (gun_model.b if gun_model.a <= gun_model.b else gun_model.a)*1.0)
-        # print('query_ball_points', len(query_ball_points), query_ball_points)
-
+        print('query_ball_points', len(query_ball_points), end=' ')
+        k = 0
         for point_index in query_ball_points:
             point = sample_tree.data[point_index]
-
+            print(k, end=' ')
+            k+=1
             tool_pos_to_point = point - current_tool_position
             tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
             tool_pos_to_point /= tool_pos_to_point_dist
@@ -135,6 +189,7 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh, 
 
             x, y = d_rp * np.sin(angle_minor_axis_to_point), d_rp * np.cos(angle_minor_axis_to_point)
             if gun_model.check_point_validity(x, y):
+
                 # Estimate deposition thickness for this point
                 surface_normal = mesh.face_normals[sample_face_indexes[point_index]]
                 deposition_at_h = gun_model.deposition_intensity(x, y)
@@ -151,6 +206,9 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh, 
         scatter.set_color(m.to_rgba(deposition_thickness))
         scatter._facecolor3d = scatter.get_facecolor()
         scatter._edgecolor3d = scatter.get_edgecolor()
-
+        print('\nDrawing')
         matplotlib.pyplot.draw()
-        matplotlib.pyplot.pause(0.0000001)
+        print('Waiting')
+        time.sleep(0.00001)
+        # matplotlib.pyplot.pause(0.000000001)
+        print('Done')
