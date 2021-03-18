@@ -13,7 +13,7 @@ class SprayGunModel:
         self.resolution = 0.001
         self.viz_resolution = 0.01
         self.z_orientation = 0
-        self.h = 0.2
+        self.h = 0.5
 
     def check_point_validity(self, x, y) -> bool:
         # (self.b * np.sqrt(1 - (x ** 2) / self.a ** 2))

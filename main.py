@@ -23,14 +23,14 @@ import json
 mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 
 constant_vel                    = 0.2  # m/s
-deposition_sim_time_resolution  = 0.1  # s
+deposition_sim_time_resolution  = 0.2  # s
 tool_motion_time_resolution     = 0.2  # s
-standoff_dist                   = 0.2  # m
+standoff_dist                   = 0.5  # m
 vert_dist_threshold             = 0.05 # m
 adjacent_tool_pose_angle_threshold = np.radians(10.0)
 adjacent_vertex_angle_threshold = np.radians(10.0)
 direction_flag = False
-number_of_samples               = 1500
+number_of_samples               = 10000
 
 gun_model = SprayGunModel()
 canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(0))
@@ -39,6 +39,9 @@ slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
 get_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0)
 get_1d_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0, True)
 
+final_rendering_fig, final_rendering_ax = plt.subplots(subplot_kw={'projection': '3d'})
+final_rendering_fig.tight_layout()
+final_rendering_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
 fig, axs = plt.subplots(nrows=2, ncols=2, subplot_kw={'projection': '3d'})
 for axr in axs:
     for ax in axr:
@@ -95,7 +98,7 @@ print("Eigenvector after sort: \n", eigen_vectors, "\n")
 print("Eigenvalues after sort: \n", eigen_values, "\n")
 
 start = np.min(mesh.vertices, axis=0) + eigen_vectors[:, 2] * (
-            eigen_values[2] * 10) - eigen_vectors[:, 0] * (slicing_distance- gun_model.a)
+            eigen_values[2] * 10) + eigen_vectors[:, 0] * (slicing_distance- gun_model.a)/2
 stop = np.max(mesh.vertices, axis=0) + eigen_vectors[:, 0] * slicing_distance
 start[2] = stop[2] = 0
 length = LA.norm(stop - start)
@@ -110,6 +113,7 @@ print('eigen_vectors[:,0]', eigen_vectors[:, 0])
 sections = mesh.section_multiplane(plane_origin=start,
                                    plane_normal=eigen_vectors[:, 0],
                                    heights=np.arange(0, length, step=slicing_distance))
+print('sections', len(sections))
 sections = [s for s in sections if s]
 print('sections', len(sections))
 
@@ -224,9 +228,11 @@ for section_iter, section_path_group in enumerate(d3sections):
     # Visualization of activated(g) and deactivated(k) tool travel within this section cut
     for i, ver_group in enumerate(all_verts_this_section):
         plot_path(axs[1][0], vertices=ver_group)
+        plot_path(axs[1][1], vertices=ver_group)
 
         if i > 0:
             plot_path(axs[1][0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
+            plot_path(final_rendering_ax, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
         for vertex in ver_group:
             axs[1][0].text(vertex[0], vertex[1], vertex[2],
                            str(vert_iter), color='g', zorder=2)
@@ -243,7 +249,7 @@ for section_iter, section_path_group in enumerate(d3sections):
 # Vert groups may or may not be from the same section
 
 for i in range(int(len(section_end_vert_pairs) / 2)):
-    # plot_path(axs[0][1], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
+    plot_path(axs[1][1], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
     plot_path(axs[1][0], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
 
 plt.draw()
@@ -255,14 +261,9 @@ xx, yy = np.meshgrid(np.arange(original_mesh.bounds[0][0], original_mesh.bounds[
                      np.arange(original_mesh.bounds[0][1], original_mesh.bounds[1][1], 0.2))
 z = np.full((len(xx), len(xx[0])), 0)
 axs[0][1].plot_surface(xx, yy, z, alpha=0.5)
-
-combined3d = np.sum(d3sections)
-combined = np.sum(sections)
-
-
-
 # Writing to a JSON file
 file_data = []
+ray_mesh_intersector = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
 
 sample_dist = constant_vel * deposition_sim_time_resolution
 all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, all_tool_normals, sample_dist)
@@ -270,6 +271,16 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
     time_stamp = 0
     for i, (current_tool_position, current_tool_normal) in enumerate(
             zip(continuous_tool_positions, continuous_tool_normals)):
+        intersection_locations, index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(
+            np.array(continuous_tool_positions),
+            np.array(continuous_tool_normals))
+        sorted_intersection_locations = [loc for loc, _ in
+                                         sorted(zip(intersection_locations, index_ray), key=lambda pair: pair[1])]
+        continuous_tool_positions, continuous_tool_normals = limit_tool_positions(continuous_tool_positions, np.array(
+            sorted_intersection_locations), continuous_tool_normals)
+        plot_path(final_rendering_ax, continuous_tool_positions)
+        plot_normals(final_rendering_ax, continuous_tool_positions, continuous_tool_normals)
+
         dict = {"time_stamp": time_stamp,
                 "z_rotation": 0.0,
                 "spray_on": False if i==len(continuous_tool_positions)-1 else True,
@@ -285,7 +296,7 @@ with open('tool_positions.json', 'w') as outfile:
 samples, sample_face_index = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
 deposition_thickness = [0.0] * len(samples)
 sample_tree = spatial.KDTree(samples)
-ray_mesh_intersector = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
+
 
 sim_sample_dist = constant_vel * deposition_sim_time_resolution
 
@@ -294,7 +305,7 @@ all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, a
 
 # ################################# Calculate paint passes #################################
 deposition_thickness = np.array(deposition_thickness)
-scatter = axs[1][1].scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=2.0)#, c=deposition_thickness, cmap='coolwarm')
+scatter = final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=5.0)#, c=deposition_thickness, cmap='coolwarm')
 print('scatter', scatter)
 j = 0
 for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions[:], tool_normals[:]):
@@ -302,7 +313,7 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
         np.array(continuous_tool_positions),
         np.array(continuous_tool_normals))
     title_text = 'Processing paint pass '+ str(j+1)+ '/'+ str(len(all_tool_positions)) + '..'
-    fig.canvas.set_window_title(title_text)
+    final_rendering_fig.canvas.set_window_title(title_text)
     plt.draw()
     plt.pause(0.001)
     print('\n', title_text, ':', len(continuous_tool_positions), end=' ')
@@ -322,6 +333,8 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
         tool_major_axis_vecs.append(current_tool_major_axis_vec)
         tool_minor_axis_vecs.append(current_tool_minor_axis_vec)
 
+    continuous_tool_positions, continuous_tool_normals = limit_tool_positions(continuous_tool_positions, np.array(sorted_intersection_locations), continuous_tool_normals)
+
     affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh,
                                        sample_face_index, sorted_intersection_locations,
                                        continuous_tool_positions, continuous_tool_normals,
@@ -338,6 +351,6 @@ print('\ndeposition_thickness min:', deposition_thickness.min() * 1000, ' max', 
       ' std:', deposition_thickness.std(0) * 1000, ' mean:', deposition_thickness.mean(0) * 1000)
 
 
-fig.canvas.set_window_title('Paint sim')
+final_rendering_fig.canvas.set_window_title('Paint sim')
 plt.show()
 

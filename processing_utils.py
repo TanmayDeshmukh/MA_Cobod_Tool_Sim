@@ -82,6 +82,33 @@ def interpolate_tool_motion(all_tool_locations, all_tool_normals, sample_dist):
         all_tool_positions.append(continuous_tool_positions), tool_normals.append(continuous_tool_normals)
     return all_tool_positions, tool_normals
 
+def closest_reachable_position(tool_position: []) -> []:
+    tool_position = np.array(tool_position)
+    new_pos = np.array([tool_position[0], tool_position[1], np.clip(tool_position[2], 0.7, 1.5)])
+    return new_pos
+
+def can_tool_reach_position(tool_position: []):
+    new_pos = closest_reachable_position(tool_position)
+    if (np.array(tool_position)== new_pos).all():
+        return True, new_pos
+    else:
+        # print('old', tool_position, 'new_pos', new_pos)
+        return False, new_pos
+
+
+def limit_tool_positions(all_tool_positions, surface_projected_positions,  all_tool_normals ):
+    constrained_tool_positions, constrained_tool_normals = [], []
+
+    for desired_tool_position, surface_projected_position, desired_tool_normal in zip(all_tool_positions, surface_projected_positions, all_tool_normals):
+        reachable, new_position = can_tool_reach_position(desired_tool_position)
+        new_normal = desired_tool_normal
+        if not reachable:
+            new_normal = surface_projected_position-new_position
+            new_normal /= LA.norm(new_normal)
+        constrained_tool_positions.append(new_position), constrained_tool_normals.append(new_normal)
+
+    return constrained_tool_positions, constrained_tool_normals
+
 
 def affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh, sample_face_indexes,
                                        sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes, tool_minor_axes,
@@ -90,7 +117,7 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh, 
     for intersection_location, current_tool_position, current_tool_normal, current_tool_major_axis_vec, current_tool_minor_axis_vec in zip(
             sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes, tool_minor_axes):
         query_ball_points = sample_tree.query_ball_point(intersection_location,
-                                                         gun_model.b if gun_model.a <= gun_model.b else gun_model.a)
+                                                         (gun_model.b if gun_model.a <= gun_model.b else gun_model.a)*1.0)
         # print('query_ball_points', len(query_ball_points), query_ball_points)
 
         for point_index in query_ball_points:
