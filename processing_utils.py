@@ -4,6 +4,7 @@ import matplotlib
 import time
 from viz_utils import *
 
+
 def filter_sample_points(samples: [[]], normals: [[]], adjacent_tool_pose_angle_threshold: float,
                          adjacent_vertex_angle_threshold: float, inter_ver_dist_thresh: float):
     ele_popped = 0
@@ -67,7 +68,7 @@ def interpolate_tool_motion(all_tool_locations: [], all_tool_normals: [], sample
             continuous_tool_positions.append(next_position)
         n0, n1 = np.array(normal_pair[0]), np.array(normal_pair[1])
         omega = np.arccos(np.clip(np.dot(n0 / LA.norm(n0), n1 / LA.norm(n1)), -1.0,
-                                  1.0))  # Clip so that we dont exceed -1.0, 1.0 due to float arithmatic errors
+                                  1.0))  # Clip so that we dont exceed -1.0, 1.0 due to floating arithmatic errors
         so = np.sin(omega)
         if omega in [0.0, np.inf, np.nan]:
             # Two normals in the same direction, no need for slerp
@@ -93,12 +94,11 @@ def closest_reachable_position(tool_position: [], x_lims: [], y_lims: [], z_lims
     return new_pos
 
 
-def can_tool_reach_position(tool_position: []):
-    new_pos = closest_reachable_position(tool_position, [0.6, 2], [0.4, 1.5], [0.6, 1] )
+def can_tool_reach_position(tool_position: []) -> (bool, np.ndarray):
+    new_pos = closest_reachable_position(tool_position, [0, 2], [0.4, 1.5], [0.2, 1])
     if (np.array(tool_position) == new_pos).all():
         return True, new_pos
     else:
-        # print('old', tool_position, 'new_pos', new_pos)
         return False, new_pos
 
 
@@ -161,6 +161,7 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
     scatter._facecolor3d = scatter.get_facecolor()
     scatter._edgecolor3d = scatter.get_edgecolor()
     # print('\ndone')
+
 
 def affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh, sample_face_indexes,
                                        sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes, tool_minor_axes,

@@ -24,14 +24,15 @@ from matplotlib.animation import FuncAnimation
 mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 
 constant_vel                    = 0.2  # m/s
-deposition_sim_time_resolution  = 0.2  # s
+deposition_sim_time_resolution  = 0.05  # s
 tool_motion_time_resolution     = 0.8  # s
 standoff_dist                   = 0.4  # m
 vert_dist_threshold             = 0.05 # m
 adjacent_tool_pose_angle_threshold = np.radians(10.0)
 adjacent_vertex_angle_threshold = np.radians(10.0)
 direction_flag = False
-number_of_samples               = 10000
+number_of_samples               = 5000
+surface_sample_viz_size         = 13
 
 gun_model = SprayGunModel()
 canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(0))
@@ -40,33 +41,25 @@ slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
 get_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0)
 # get_1d_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0, True)
 
-fig, axs = plt.subplots(nrows=2, ncols=2, subplot_kw={'projection': '3d'})
-for axr in axs:
-    for ax in axr:
-        ax.relim()
-        # update ax.viewLim using the new dataLim
-        ax.autoscale_view()
-        min_lim = min(mesh.bounds[0, :])
-        max_lim = max(mesh.bounds[1, :])
-        ax.set_xlim3d(mesh.bounds[0][0] - 0.5, mesh.bounds[1][0] + 0.5)
-        ax.set_ylim3d(mesh.bounds[0][1] - 0.5, mesh.bounds[1][1])
-        ax.set_zlim3d(mesh.bounds[0][2], mesh.bounds[1][2] + 0.5)
+fig, axs = plt.subplots(nrows=1, ncols=2, subplot_kw={'projection': '3d'})
+for ax in axs:
+    #for ax in axr:
+    ax.relim()
+    # update ax.viewLim using the new dataLim
+    ax.autoscale_view()
+    min_lim = min(mesh.bounds[0, :])
+    max_lim = max(mesh.bounds[1, :])
+    ax.set_xlim3d(mesh.bounds[0][0] - 0.5, mesh.bounds[1][0] + 0.5)
+    ax.set_ylim3d(mesh.bounds[0][1] - 0.5, mesh.bounds[1][1])
+    ax.set_zlim3d(mesh.bounds[0][2], mesh.bounds[1][2] + 0.5)
 
-        limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz'])
-        ax.set_box_aspect(np.ptp(limits, axis=1))
+    limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz'])
+    ax.set_box_aspect(np.ptp(limits, axis=1))
 
 fig.tight_layout()
-fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
+fig.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
 
 original_mesh = copy.copy(mesh)
-
-################ Full model #################
-mplot = mplot3d.art3d.Poly3DCollection(original_mesh.triangles)
-mplot.set_alpha(0.5)
-mplot.set_facecolor('grey')
-mplot.set_edgecolor('black')
-mplot.set_sort_zpos(-2)
-axs[0][0].add_collection3d(mplot)
 
 faces_mask = np.array([i for i, normal in enumerate(mesh.face_normals) if normal[1] < -0.1 and normal[0] > -0.5])
 print('faces_mask', faces_mask)
@@ -77,12 +70,20 @@ mesh.remove_infinite_values()
 mesh.visual.face_colors = [50, 150, 50, 255]
 # scene.add_geometry(mesh)
 
+# ############### Full model #################
+mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
+mplot.set_alpha(0.5)
+mplot.set_facecolor('grey')
+# mplot.set_edgecolor('black')
+mplot.set_sort_zpos(-2)
+axs[0].add_collection3d(mplot)
+
 mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
 # mplot.set_alpha(0.6)
 mplot.set_facecolor('cornflowerblue')
 # mplot.set_edgecolor('k')
 mplot.set_sort_zpos(-1)
-axs[1][1].add_collection3d(mplot)
+axs[1].add_collection3d(mplot)
 
 # ############################### PCA #################################
 
@@ -102,9 +103,9 @@ start[2] = stop[2] = 0
 length = LA.norm(stop - start)
 print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
 print("Eigenvector: \n", eigen_vectors, "\n")
-plot_normals(axs[0][1], [start], [eigen_vectors[:, 0]], norm_length=length)
-plot_normals(axs[0][1], [start], [eigen_vectors[:, 1]], norm_length=1, color='g')
-plot_normals(axs[0][1], [start], [eigen_vectors[:, 2]], norm_length=1, color='b')
+plot_normals(axs[0], [start], [eigen_vectors[:, 0]], norm_length=length, color='b')
+# plot_normals(axs[0], [start], [eigen_vectors[:, 1]], norm_length=1, color='g')
+# plot_normals(axs[0], [start], [eigen_vectors[:, 2]], norm_length=1, color='b')
 print('eigen_vectors[:,0]', eigen_vectors[:, 0])
 
 # ################################# Slicing #####################################
@@ -157,7 +158,7 @@ for section_iter, section_path_group in enumerate(d3sections):
             normals.append(this_face_normal)
 
         # check first 2 z values and correct the subpaths' direction
-        plot_path(axs[0][1], np.array(translated_verts))
+        plot_path(axs[0], np.array(translated_verts))
 
         if (translated_verts[0][2] > translated_verts[1][2]) ^ direction_flag:
             translated_verts.reverse()
@@ -168,16 +169,16 @@ for section_iter, section_path_group in enumerate(d3sections):
         translated_verts = np.array(translated_verts)
         normals = np.array(normals)
 
-        axs[0][1].scatter(translated_verts[:,0], translated_verts[:,1], translated_verts[:,2], s=2.5, c='r')
+        axs[0].scatter(translated_verts[:,0], translated_verts[:,1], translated_verts[:,2], s=2.5, c='r')
     if section_iter == 4:
         temp_iter = 0
         print('direction_flag', direction_flag)
-        for i in range(len(all_verts_this_section)):
+        """for i in range(len(all_verts_this_section)):
             plot_path(axs[0][0], all_verts_this_section[i])
             for vertex in all_verts_this_section[i]:
                 axs[0][0].text(vertex[0] + 0.05, vertex[1], vertex[2],
                                str(temp_iter), color='r', zorder=2)
-                temp_iter += 1
+                temp_iter += 1"""
         print('all_verts_this_section', len(all_verts_this_section))
 
     # Combine subpaths if endpoints are close enough
@@ -197,7 +198,7 @@ for section_iter, section_path_group in enumerate(d3sections):
             temp_iter = 0;
             for k in range(len(all_verts_this_section)):
                 for vertex in all_verts_this_section[k]:
-                    axs[0][0].text(vertex[0] + 0.15 + i / 10, vertex[1], vertex[2],
+                    axs[0].text(vertex[0] + 0.15 + i / 10, vertex[1], vertex[2],
                                    str(temp_iter), color='g', zorder=2)
                     temp_iter += 1
 
@@ -218,21 +219,21 @@ for section_iter, section_path_group in enumerate(d3sections):
     all_tool_normals += all_normals
     all_normals = -np.array(list(itertools.chain.from_iterable(all_normals)))
 
-    plot_normals(axs[1][0], vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
+    plot_normals(axs[0], vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
                  directions=all_normals)
     # plot_normals(axs[1][1], vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
     #              directions=all_normals)
 
     # Visualization of activated(g) and deactivated(k) tool travel within this section cut
     for i, ver_group in enumerate(all_verts_this_section):
-        plot_path(axs[1][0], vertices=ver_group)
+        plot_path(axs[0], vertices=ver_group)
         # plot_path(axs[1][1], vertices=ver_group)
 
         if i > 0:
-            plot_path(axs[1][0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
-            plot_path(axs[1][1], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
+            plot_path(axs[0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
+            # plot_path(axs[1][1], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
         for vertex in ver_group:
-            axs[1][0].text(vertex[0], vertex[1], vertex[2],
+            axs[0].text(vertex[0], vertex[1], vertex[2],
                            str(vert_iter), color='g', zorder=2)
             vert_iter += 1
 
@@ -247,8 +248,8 @@ for section_iter, section_path_group in enumerate(d3sections):
 # Vert groups may or may not be from the same section
 
 for i in range(int(len(section_end_vert_pairs) / 2)):
-    plot_path(axs[1][1], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
-    plot_path(axs[1][0], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
+    # plot_path(axs[1][1], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
+    plot_path(axs[0], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
 
 plt.draw()
 plt.pause(0.001)
@@ -258,7 +259,7 @@ print('all_tool_locations\n', all_tool_locations, '\nall_tool_normals\n', all_to
 xx, yy = np.meshgrid(np.arange(original_mesh.bounds[0][0], original_mesh.bounds[1][0], 0.2),
                      np.arange(original_mesh.bounds[0][1], original_mesh.bounds[1][1], 0.2))
 z = np.full((len(xx), len(xx[0])), 0)
-axs[0][1].plot_surface(xx, yy, z, alpha=0.5)
+axs[1].plot_surface(xx, yy, z, alpha=0.5)
 
 
 final_rendering_fig, final_rendering_ax = plt.subplots(subplot_kw={'projection': '3d'})
@@ -270,20 +271,23 @@ file_data = []
 ray_mesh_intersector = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
 sample_dist = constant_vel * tool_motion_time_resolution
 all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, all_tool_normals, sample_dist)
+total_time_count = 0
 for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions, tool_normals):
     time_stamp = 0
-    for i, (current_tool_position, current_tool_normal) in enumerate(
-            zip(continuous_tool_positions, continuous_tool_normals)):
-        intersection_locations, index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(
-            np.array(continuous_tool_positions),
-            np.array(continuous_tool_normals))
-        sorted_intersection_locations = [loc for loc, _ in
-                                         sorted(zip(intersection_locations, index_ray), key=lambda pair: pair[1])]
-        continuous_tool_positions, continuous_tool_normals = limit_tool_positions(continuous_tool_positions, np.array(
-            sorted_intersection_locations), continuous_tool_normals)
-        plot_path(axs[1][1], continuous_tool_positions)
-        plot_normals(axs[1][1], continuous_tool_positions, continuous_tool_normals)
-        dict = {"time_stamp": time_stamp,
+    intersection_locations, index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(
+        np.array(continuous_tool_positions),
+        np.array(continuous_tool_normals))
+    sorted_intersection_locations = [loc for loc, _ in
+                                     sorted(zip(intersection_locations, index_ray), key=lambda pair: pair[1])]
+    continuous_tool_positions, continuous_tool_normals = limit_tool_positions(continuous_tool_positions, np.array(
+        sorted_intersection_locations), continuous_tool_normals)
+    plot_path(axs[1], continuous_tool_positions)
+    plot_normals(axs[1], continuous_tool_positions, continuous_tool_normals)
+
+    for i, (current_tool_position, current_tool_normal, intersection_location) in enumerate(
+            zip(continuous_tool_positions, continuous_tool_normals, sorted_intersection_locations)):
+        actual_norm_dist = LA.norm(current_tool_position-intersection_location)
+        dict = {"time_stamp": time_stamp*actual_norm_dist/standoff_dist,
                 "z_rotation": 0.0,
                 "spray_on": False if i==len(continuous_tool_positions)-1 else True,
                 "tool_position": list(current_tool_position),
@@ -291,6 +295,7 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
                 }
         file_data.append(dict)
         time_stamp += tool_motion_time_resolution
+    total_time_count += time_stamp
 with open('tool_positions.json', 'w') as outfile:
     json.dump(file_data, outfile, indent=2)
 
@@ -306,7 +311,7 @@ all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, a
 
 # ################################# Calculate paint passes #################################
 deposition_thickness = np.array(deposition_thickness)
-scatter = final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=5.0)#, c=deposition_thickness, cmap='coolwarm')
+scatter = final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=surface_sample_viz_size)#, c=deposition_thickness, cmap='coolwarm')
 print('scatter', scatter)
 
 total_tool_positions = [len(continuous_tool_positions) for continuous_tool_positions in all_tool_positions]
@@ -359,11 +364,15 @@ def update(frame_number):
             #plot_normals(final_rendering_ax, continuous_tool_positions, tool_minor_axis_vecs, norm_length=0.3, color='g')
 
         # print('new_position', j, 'pass', paint_pass)
+        actual_norm_dist = LA.norm(continuous_tool_positions[j] - sorted_intersection_locations[j])
+        time_scale = actual_norm_dist/standoff_dist
+        # print('time_scale', time_scale, 'actual_norm_dist', actual_norm_dist, 'standoff_dist', standoff_dist)
+        animation.event_source.interval = deposition_sim_time_resolution*1000*time_scale
         affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
                                            sample_face_indexes, sorted_intersection_locations[j],
                                            continuous_tool_positions[j], continuous_tool_normals[j],
                                            tool_major_axis_vecs[j], tool_minor_axis_vecs[j],
-                                           gun_model, deposition_sim_time_resolution, scatter)
+                                           gun_model, deposition_sim_time_resolution*time_scale, scatter)
 
         j += 1
         if j >= total_tool_positions[paint_pass]:
@@ -395,7 +404,7 @@ print('\ndeposition_thickness min:', deposition_thickness.min() * 1000, ' max', 
 
 final_rendering_fig.canvas.set_window_title('Paint sim')
 
-animation = FuncAnimation(final_rendering_fig, update, interval= 1, blit=False)
-print('after anim')
+animation = FuncAnimation(final_rendering_fig, update, interval= deposition_sim_time_resolution*1000, blit=False)
+print('\n Cumulative spray time', total_time_count)
 plt.show()
 print('after plot')
