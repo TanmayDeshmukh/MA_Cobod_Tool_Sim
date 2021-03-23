@@ -95,7 +95,7 @@ def closest_reachable_position(tool_position: [], x_lims: [], y_lims: [], z_lims
 
 
 def can_tool_reach_position(tool_position: []) -> (bool, np.ndarray):
-    new_pos = closest_reachable_position(tool_position, [0, 2], [0.4, 1.5], [0.2, 1])
+    new_pos = closest_reachable_position(tool_position, [0, 2], [0.4, 1.5], [0.5, 1.0])
     if (np.array(tool_position) == new_pos).all():
         return True, new_pos
     else:
@@ -163,6 +163,13 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
     # print('\ndone')
 
 
+def surface_scaling(expected_h, actual_h, surface_normal: [], tool_pos_to_point_vec: [], tool_normal: []) -> float:
+    multiplier = ((expected_h / actual_h) ** 2) * np.dot(surface_normal,
+                                                                        tool_pos_to_point_vec) / (
+                     np.dot(tool_pos_to_point_vec, -tool_normal))
+    return multiplier
+
+
 def affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh, sample_face_indexes,
                                        sorted_intersection_locations, tool_positions, tool_normals, tool_major_axes, tool_minor_axes,
                                        gun_model, deposition_sim_time_resolution, scatter):
@@ -194,9 +201,10 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh, 
                 # Estimate deposition thickness for this point
                 surface_normal = mesh.face_normals[sample_face_indexes[point_index]]
                 deposition_at_h = gun_model.deposition_intensity(x, y)
-                multiplier = ((gun_model.h / tool_pos_to_point_dist) ** 2) * np.dot(surface_normal,
+                multiplier = surface_scaling(gun_model.h, tool_pos_to_point_dist, tool_pos_to_point, current_tool_normal)
+                """    ((gun_model.h / tool_pos_to_point_dist) ** 2) * np.dot(surface_normal,
                                                                                     tool_pos_to_point) / (
-                                 np.dot(tool_pos_to_point, -current_tool_normal))
+                                 np.dot(tool_pos_to_point, -current_tool_normal))"""
                 # multiplier = ((gun_model.h / tool_pos_to_point_dist))
                 # multiplier = 1
                 deposition_thickness[point_index] += multiplier * deposition_at_h * deposition_sim_time_resolution

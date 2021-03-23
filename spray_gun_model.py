@@ -4,7 +4,7 @@ from matplotlib.ticker import FormatStrFormatter
 
 
 class SprayGunModel:
-    def __init__(self, beta1=1.5, beta2=2.5, a=0.3, b=0.1, f_max=0.0001):
+    def __init__(self, beta1=1.5, beta2=2.5, a=0.5, b=0.1, f_max=0.0005):
         self.beta1 = beta1
         self.beta2 = beta2
         self.a = a
@@ -13,7 +13,7 @@ class SprayGunModel:
         self.resolution = 0.001
         self.viz_resolution = 0.01
         self.z_orientation = 0
-        self.h = 0.4
+        self.h = 0.5
 
     def check_point_validity(self, x, y) -> bool:
         # (self.b * np.sqrt(1 - (x ** 2) / self.a ** 2))

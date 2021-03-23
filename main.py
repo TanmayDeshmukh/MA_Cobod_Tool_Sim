@@ -20,29 +20,37 @@ from overlap_optimisation import *
 from processing_utils import *
 import json
 from matplotlib.animation import FuncAnimation
+import open3d as o3d
+import mplcursors
 
 mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 
-constant_vel                    = 0.2  # m/s
+constant_vel                    = 0.3  # m/s
 deposition_sim_time_resolution  = 0.05  # s
-tool_motion_time_resolution     = 0.8  # s
-standoff_dist                   = 0.4  # m
+tool_motion_time_resolution     = 0.5  # s
+standoff_dist                   = 0.5  # m
 vert_dist_threshold             = 0.05 # m
 adjacent_tool_pose_angle_threshold = np.radians(10.0)
 adjacent_vertex_angle_threshold = np.radians(10.0)
-direction_flag = False
-number_of_samples               = 5000
-surface_sample_viz_size         = 13
+direction_flag                  = False
+number_of_samples               = 2000
+surface_sample_viz_size         = 20
 
 gun_model = SprayGunModel()
 canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(0))
 # gun_model.visualize_deposition(canvas, X_grid, Y_grid)
 slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
 get_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0)
-# get_1d_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0, True)
+get_1d_overlap_profile(gun_model, slicing_distance- gun_model.a/2, 0, 0, True)
 
-fig, axs = plt.subplots(nrows=1, ncols=2, subplot_kw={'projection': '3d'})
-for ax in axs:
+fig_init, axs_init = plt.subplots(nrows=1, ncols=1, subplot_kw={'projection': '3d'})
+fig_init.canvas.set_window_title('Desired Path')
+final_path_fig, final_path_ax = plt.subplots(subplot_kw={'projection': '3d'})
+final_path_fig.tight_layout()
+final_path_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
+final_path_fig.canvas.set_window_title('Final Path')
+
+for ax in [axs_init, final_path_ax]:
     #for ax in axr:
     ax.relim()
     # update ax.viewLim using the new dataLim
@@ -56,16 +64,17 @@ for ax in axs:
     limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz'])
     ax.set_box_aspect(np.ptp(limits, axis=1))
 
-fig.tight_layout()
-fig.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
+fig_init.tight_layout()
+fig_init.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
+
 
 original_mesh = copy.copy(mesh)
-
 faces_mask = np.array([i for i, normal in enumerate(mesh.face_normals) if normal[1] < -0.1 and normal[0] > -0.5])
 print('faces_mask', faces_mask)
 mesh.update_faces(faces_mask)
 mesh.remove_unreferenced_vertices()
 mesh.remove_infinite_values()
+mesh.export('surface_only.stl')
 # Remove all vertices in the current mesh which are not referenced by a face.
 mesh.visual.face_colors = [50, 150, 50, 255]
 # scene.add_geometry(mesh)
@@ -76,14 +85,14 @@ mplot.set_alpha(0.5)
 mplot.set_facecolor('grey')
 # mplot.set_edgecolor('black')
 mplot.set_sort_zpos(-2)
-axs[0].add_collection3d(mplot)
+axs_init.add_collection3d(mplot)
 
 mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
 # mplot.set_alpha(0.6)
 mplot.set_facecolor('cornflowerblue')
 # mplot.set_edgecolor('k')
 mplot.set_sort_zpos(-1)
-axs[1].add_collection3d(mplot)
+final_path_ax.add_collection3d(mplot)
 
 # ############################### PCA #################################
 
@@ -103,9 +112,10 @@ start[2] = stop[2] = 0
 length = LA.norm(stop - start)
 print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
 print("Eigenvector: \n", eigen_vectors, "\n")
-plot_normals(axs[0], [start], [eigen_vectors[:, 0]], norm_length=length, color='b')
-# plot_normals(axs[0], [start], [eigen_vectors[:, 1]], norm_length=1, color='g')
-# plot_normals(axs[0], [start], [eigen_vectors[:, 2]], norm_length=1, color='b')
+
+plot_normals(axs_init, [start], [eigen_vectors[:, 0]], norm_length=length, color='b')
+# plot_normals(axs_init, [start], [eigen_vectors[:, 1]], norm_length=1, color='g')
+# plot_normals(axs_init, [start], [eigen_vectors[:, 2]], norm_length=1, color='b')
 print('eigen_vectors[:,0]', eigen_vectors[:, 0])
 
 # ################################# Slicing #####################################
@@ -158,7 +168,7 @@ for section_iter, section_path_group in enumerate(d3sections):
             normals.append(this_face_normal)
 
         # check first 2 z values and correct the subpaths' direction
-        plot_path(axs[0], np.array(translated_verts))
+        plot_path(axs_init, np.array(translated_verts))
 
         if (translated_verts[0][2] > translated_verts[1][2]) ^ direction_flag:
             translated_verts.reverse()
@@ -169,7 +179,7 @@ for section_iter, section_path_group in enumerate(d3sections):
         translated_verts = np.array(translated_verts)
         normals = np.array(normals)
 
-        axs[0].scatter(translated_verts[:,0], translated_verts[:,1], translated_verts[:,2], s=2.5, c='r')
+        axs_init.scatter(translated_verts[:,0], translated_verts[:,1], translated_verts[:,2], s=2.5, c='r')
     if section_iter == 4:
         temp_iter = 0
         print('direction_flag', direction_flag)
@@ -198,7 +208,7 @@ for section_iter, section_path_group in enumerate(d3sections):
             temp_iter = 0;
             for k in range(len(all_verts_this_section)):
                 for vertex in all_verts_this_section[k]:
-                    axs[0].text(vertex[0] + 0.15 + i / 10, vertex[1], vertex[2],
+                    axs_init.text(vertex[0] + 0.15 + i / 10, vertex[1], vertex[2],
                                    str(temp_iter), color='g', zorder=2)
                     temp_iter += 1
 
@@ -207,9 +217,9 @@ for section_iter, section_path_group in enumerate(d3sections):
     combine_subpaths(all_verts_this_section, all_normals, vert_dist_threshold, adjacent_tool_pose_angle_threshold)
 
     # for vert_group, norms in zip(all_verts_this_section, all_normals):
-    #     plot_path(axs[0][1], vertices=vert_group)
+    #     plot_path(axs_init[1], vertices=vert_group)
 
-    # plot_normals(axs[0][1], vertices=vert_group, directions=norms)
+    # plot_normals(axs_init[1], vertices=vert_group, directions=norms)
     # remove unnecessary intermediate points
     for vert_group, norms in zip(all_verts_this_section, all_normals):
         filter_sample_points(vert_group, norms, adjacent_tool_pose_angle_threshold=adjacent_tool_pose_angle_threshold,
@@ -219,21 +229,21 @@ for section_iter, section_path_group in enumerate(d3sections):
     all_tool_normals += all_normals
     all_normals = -np.array(list(itertools.chain.from_iterable(all_normals)))
 
-    plot_normals(axs[0], vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
+    plot_normals(axs_init, vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
                  directions=all_normals)
     # plot_normals(axs[1][1], vertices=list(itertools.chain.from_iterable(all_verts_this_section)),
     #              directions=all_normals)
 
     # Visualization of activated(g) and deactivated(k) tool travel within this section cut
     for i, ver_group in enumerate(all_verts_this_section):
-        plot_path(axs[0], vertices=ver_group)
+        plot_path(axs_init, vertices=ver_group)
         # plot_path(axs[1][1], vertices=ver_group)
 
         if i > 0:
-            plot_path(axs[0], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
+            plot_path(axs_init, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
             # plot_path(axs[1][1], vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]], color='k')
         for vertex in ver_group:
-            axs[0].text(vertex[0], vertex[1], vertex[2],
+            axs_init.text(vertex[0], vertex[1], vertex[2],
                            str(vert_iter), color='g', zorder=2)
             vert_iter += 1
 
@@ -249,7 +259,7 @@ for section_iter, section_path_group in enumerate(d3sections):
 
 for i in range(int(len(section_end_vert_pairs) / 2)):
     # plot_path(axs[1][1], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
-    plot_path(axs[0], vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
+    plot_path(axs_init, vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
 
 plt.draw()
 plt.pause(0.001)
@@ -259,12 +269,26 @@ print('all_tool_locations\n', all_tool_locations, '\nall_tool_normals\n', all_to
 xx, yy = np.meshgrid(np.arange(original_mesh.bounds[0][0], original_mesh.bounds[1][0], 0.2),
                      np.arange(original_mesh.bounds[0][1], original_mesh.bounds[1][1], 0.2))
 z = np.full((len(xx), len(xx[0])), 0)
-axs[1].plot_surface(xx, yy, z, alpha=0.5)
+final_path_ax.plot_surface(xx, yy, z, alpha=0.5)
 
 
 final_rendering_fig, final_rendering_ax = plt.subplots(subplot_kw={'projection': '3d'})
 final_rendering_fig.tight_layout()
 final_rendering_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
+
+# Sample points on surface for simulation
+samples, sample_face_indexes = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
+deposition_thickness = [0.0] * len(samples)
+sample_tree = spatial.KDTree(samples)
+
+pcd = o3d.geometry.PointCloud()
+pcd.points = o3d.utility.Vector3dVector(samples)
+o3d.io.write_point_cloud("wall_surface.pcd", pcd)
+
+# ################################# Calculate paint passes #################################
+deposition_thickness = np.array(deposition_thickness)
+scatter = final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=surface_sample_viz_size, picker = 2)#, c=deposition_thickness, cmap='coolwarm')
+
 
 # Writing to a JSON file
 file_data = []
@@ -281,12 +305,23 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
                                      sorted(zip(intersection_locations, index_ray), key=lambda pair: pair[1])]
     continuous_tool_positions, continuous_tool_normals = limit_tool_positions(continuous_tool_positions, np.array(
         sorted_intersection_locations), continuous_tool_normals)
-    plot_path(axs[1], continuous_tool_positions)
-    plot_normals(axs[1], continuous_tool_positions, continuous_tool_normals)
+    sorted_intersection_locations = np.array(sorted_intersection_locations)
+    final_rendering_ax.scatter(sorted_intersection_locations[:, 0], sorted_intersection_locations[:, 1],
+                               sorted_intersection_locations[:, 2], s=17, color='r')
+
+    plot_path(final_path_ax, continuous_tool_positions)
+    plot_normals(final_path_ax, continuous_tool_positions, continuous_tool_normals)
 
     for i, (current_tool_position, current_tool_normal, intersection_location) in enumerate(
             zip(continuous_tool_positions, continuous_tool_normals, sorted_intersection_locations)):
-        actual_norm_dist = LA.norm(current_tool_position-intersection_location)
+
+        tool_pos_to_point = current_tool_position-intersection_location
+        actual_norm_dist = LA.norm(tool_pos_to_point)
+        tool_pos_to_point /= actual_norm_dist
+        surface_normal = mesh.face_normals[intersection_index_tri[i]]
+
+        time_scale = 1.0 / surface_scaling(gun_model.h, actual_norm_dist, surface_normal, tool_pos_to_point,
+                                           current_tool_normal)
         dict = {"time_stamp": time_stamp*actual_norm_dist/standoff_dist,
                 "z_rotation": 0.0,
                 "spray_on": False if i==len(continuous_tool_positions)-1 else True,
@@ -299,20 +334,11 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
 with open('tool_positions.json', 'w') as outfile:
     json.dump(file_data, outfile, indent=2)
 
-samples, sample_face_indexes = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
-deposition_thickness = [0.0] * len(samples)
-sample_tree = spatial.KDTree(samples)
-
 
 sim_sample_dist = constant_vel * deposition_sim_time_resolution
 
 # ########### Create pose list from constant time interval ##############
 all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, all_tool_normals, sim_sample_dist)
-
-# ################################# Calculate paint passes #################################
-deposition_thickness = np.array(deposition_thickness)
-scatter = final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=surface_sample_viz_size)#, c=deposition_thickness, cmap='coolwarm')
-print('scatter', scatter)
 
 total_tool_positions = [len(continuous_tool_positions) for continuous_tool_positions in all_tool_positions]
 paint_pass, j = 0, 0
@@ -322,12 +348,15 @@ continuous_tool_positions = []
 continuous_tool_normals = []
 tool_major_axis_vecs = []
 tool_minor_axis_vecs = []
+intersection_index_tri = -1
 def update(frame_number):
     global paint_pass, j,sorted_intersection_locations, continuous_tool_positions, continuous_tool_normals, \
-        tool_major_axis_vecs, tool_minor_axis_vecs, deposition_thickness, sample_tree, mesh, scatter, deposition_sim_time_resolution, gun_model
+        intersection_index_tri, tool_major_axis_vecs, tool_minor_axis_vecs, deposition_thickness, sample_tree, mesh, scatter, deposition_sim_time_resolution, gun_model
 
     if paint_pass >= len(total_tool_positions):
-
+        print('\ndeposition_thickness\nmin:', deposition_thickness.min() * 1000, 'mm\nmax',
+              deposition_thickness.max() * 1000, 'mm\ndiff: ', (deposition_thickness.max()-deposition_thickness.min())*1000,
+              'mm\nstd:', deposition_thickness.std(0) * 1000, '\nmean:', deposition_thickness.mean(0) * 1000, '\n')
         animation.event_source.stop()
     else:
         if j==0:
@@ -364,8 +393,15 @@ def update(frame_number):
             #plot_normals(final_rendering_ax, continuous_tool_positions, tool_minor_axis_vecs, norm_length=0.3, color='g')
 
         # print('new_position', j, 'pass', paint_pass)
-        actual_norm_dist = LA.norm(continuous_tool_positions[j] - sorted_intersection_locations[j])
-        time_scale = actual_norm_dist/standoff_dist
+        tool_pos_to_point = continuous_tool_positions[j] - sorted_intersection_locations[j]
+        actual_norm_dist = LA.norm(tool_pos_to_point)
+        # print('intersection_index_tri', intersection_index_tri)
+        # print('intersection_index_tri[j]', intersection_index_tri[j])
+        surface_normal = mesh.face_normals[intersection_index_tri[j]]
+        time_scale = 1.0/ surface_scaling(gun_model.h, actual_norm_dist, surface_normal, tool_pos_to_point, continuous_tool_normals[j])
+        if j%3==0:
+            print(f'time_scale {time_scale: .3f}')
+        # time_scale = actual_norm_dist/standoff_dist
         # print('time_scale', time_scale, 'actual_norm_dist', actual_norm_dist, 'standoff_dist', standoff_dist)
         animation.event_source.interval = deposition_sim_time_resolution*1000*time_scale
         affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
@@ -398,13 +434,28 @@ print('deposition_thickness', deposition_thickness)
 
 # scatter.set_clim(vmin=min(deposition_thickness), vmax=max(deposition_thickness))
 # scatter.set_color()
-print('\ndeposition_thickness min:', deposition_thickness.min() * 1000, ' max', deposition_thickness.max() * 1000,
-      ' std:', deposition_thickness.std(0) * 1000, ' mean:', deposition_thickness.mean(0) * 1000)
+
 
 
 final_rendering_fig.canvas.set_window_title('Paint sim')
 
 animation = FuncAnimation(final_rendering_fig, update, interval= deposition_sim_time_resolution*1000, blit=False)
 print('\n Cumulative spray time', total_time_count)
+# mplcursors.cursor(hover=True)
+# cursor = mplcursors.cursor(scatter)
+# cursor.connect(
+#    "add", lambda sel: sel.annotation.set_text(f'{sel.target.index}: {deposition_thickness[sel.target.index]*1000.0 :.5f} \n {max(deposition_thickness)}'))
+
+def onpick(event):
+    thisline = event.artist
+    xdata = thisline.get_xdata()
+    ydata = thisline.get_ydata()
+    ind = event.ind
+    points = tuple(zip(xdata[ind], ydata[ind]))
+    print('onpick points:', points)
+
+# final_rendering_fig.canvas.mpl_connect('pick_event', onpick)
+
+
 plt.show()
 print('after plot')
