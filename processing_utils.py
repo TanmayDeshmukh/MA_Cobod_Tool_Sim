@@ -35,22 +35,23 @@ def angle_between_vectors(a, b):
     return np.arccos(np.clip(np.dot(a, b), -1.0, 1.0))
 
 
-def combine_subpaths(all_verts_this_section: [], all_normals: [], vert_dist_threshold: float, adjacent_tool_pose_angle_threshold: float):
+def combine_subpaths(tool_positions: [[]], tool_normals: [[]], vert_dist_threshold: float, adjacent_tool_normal_angle_threshold: float):
     ele_popped = 0
-    for i in range(len(all_verts_this_section) - 1):
-        inter_vert_dist = LA.norm(np.array(all_verts_this_section[i - ele_popped][-1]) - np.array(
-            all_verts_this_section[i + 1 - ele_popped][0]))
+    print('tool_positions combine_subpaths', tool_positions)
+    for i in range(len(tool_positions) - 1):
+        inter_vert_dist = LA.norm(np.array(tool_positions[i - ele_popped][-1]) - np.array(
+            tool_positions[i + 1 - ele_popped][0]))
         inter_vert_angle = np.arccos(
-            np.clip(np.dot(np.array(all_normals[i - ele_popped][-1]), np.array(all_normals[i + 1 - ele_popped][0])),
+            np.clip(np.dot(np.array(tool_normals[i - ele_popped][-1]), np.array(tool_normals[i + 1 - ele_popped][0])),
                     -1.0, 1.0))
 
-        if inter_vert_dist < vert_dist_threshold and inter_vert_angle < adjacent_tool_pose_angle_threshold:
-            all_verts_this_section[i + 1 - ele_popped].pop(0)  # remove first vertex in next group
-            all_verts_this_section[i - ele_popped] += all_verts_this_section.pop(
+        if inter_vert_dist < vert_dist_threshold and inter_vert_angle < adjacent_tool_normal_angle_threshold:
+            tool_positions[i + 1 - ele_popped].pop(0)  # remove first vertex in next group
+            tool_positions[i - ele_popped] += tool_positions.pop(
                 i + 1 - ele_popped)  # append next group to current group
-            all_normals[i + 1 - ele_popped].pop(0)
-            all_normals[i - ele_popped] += all_normals.pop(i + 1 - ele_popped)
-            # print('popping in after', section_iter, len(all_verts_this_section))
+            tool_normals[i + 1 - ele_popped].pop(0)
+            tool_normals[i - ele_popped] += tool_normals.pop(i + 1 - ele_popped)
+            # print('popping in after', section_iter, len(tool_positions))
             ele_popped += 1
 
 
@@ -95,7 +96,8 @@ def closest_reachable_position(tool_position: [], x_lims: [], y_lims: [], z_lims
 
 
 def can_tool_reach_position(tool_position: []) -> (bool, np.ndarray):
-    new_pos = closest_reachable_position(tool_position, [0, 2], [0.4, 1.5], [0.5, 1.0])
+    new_pos = closest_reachable_position(tool_position, [0, 2], [0.4, 1.6], [0.5, 1.0])
+    # new_pos = closest_reachable_position(tool_position, [0, 5], [0, 5], [0, 5.0])
     if (np.array(tool_position) == new_pos).all():
         return True, new_pos
     else:
@@ -213,11 +215,7 @@ def affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh, 
                                         vmax=max(deposition_thickness))
         m = matplotlib.cm.ScalarMappable(norm=n, cmap='YlOrBr_r')
         scatter.set_color(m.to_rgba(deposition_thickness))
+
+        # This has to be done to trigger color update for some reason
         scatter._facecolor3d = scatter.get_facecolor()
         scatter._edgecolor3d = scatter.get_edgecolor()
-        print('\nDrawing')
-        matplotlib.pyplot.draw()
-        print('Waiting')
-        time.sleep(0.00001)
-        # matplotlib.pyplot.pause(0.000000001)
-        print('Done')

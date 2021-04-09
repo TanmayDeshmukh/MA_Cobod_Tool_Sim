@@ -2,41 +2,154 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.patches import FancyArrowPatch
 from mpl_toolkits.mplot3d import proj3d
 import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits import mplot3d
+from matplotlib.text import Annotation
+
+
+def plot_path(ax, vertices: [[]], color="g"):
+    for i_ in range(1, len(vertices)):
+        a = Arrow3D([vertices[i_ - 1][0], vertices[i_][0]],
+                    [vertices[i_ - 1][1], vertices[i_][1]],
+                    [vertices[i_ - 1][2], vertices[i_][2]], mutation_scale=10,
+                    lw=1, arrowstyle="-|>", color=color)
+        a.set_zorder(1000)
+        ax.add_artist(a)
+
+
+def plot_normals(ax, vertices: [[]], directions: [[]], norm_length=0.25, color='r') -> None:
+    vertices = np.array(vertices)
+    directions = np.array(directions)
+
+    for i_ in range(len(vertices)):
+        end = vertices[i_] + norm_length * directions[i_]
+        a = Arrow3D([vertices[i_][0], end[0]],
+                    [vertices[i_][1], end[1]],
+                    [vertices[i_][2], end[2]], mutation_scale=10,
+                    lw=1, arrowstyle="-|>", color=color)
+        a.set_zorder(1000)
+        ax.add_artist(a)
+
+
+def visualize_deposition(template, X_grid, Y_grid):
+    fig = plt.figure(figsize=(8, 3))
+    fig.tight_layout()
+    fig.canvas.set_window_title('Surface deposition intensity')
+    fig.subplots_adjust(left=0.05, right=0.95, top=1.3, bottom=-0.2)
+    ax1 = fig.add_subplot(1, 2, 1)
+    ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+    ax2.plot_surface(X_grid, Y_grid, template,
+                     antialiased=False, cmap="coolwarm", lw=0.5, rstride=1, cstride=1, alpha=0.5)
+    ax2.contour(X_grid, Y_grid, template, 10, lw=3, colors="k", linestyles="solid")
+    # ax.contour(X_grid, Y_grid, template, zdir='z', offset=self.f_max*1.5, cmap="coolwarm")
+    ax2.contour(X_grid, Y_grid, template, zdir='x', offset=np.min(X_grid[0]), cmap="coolwarm")
+    ax2.contour(X_grid, Y_grid, template, zdir='y', offset=np.max(Y_grid[:, 0]), cmap="coolwarm")
+
+    ax1.imshow(template, extent=[np.min(X_grid[0]), np.max(X_grid[0]), np.min(Y_grid[:, 0]), np.max(Y_grid[:, 0])])
+
+    # limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz'])
+    # ax.set_box_aspect(np.ptp(limits, axis=1))
+
+    """min_x, max_x = np.min(X_grid[0]), np.max(X_grid[0])
+    min_y, max_y = np.min(Y_grid[0]), np.max(Y_grid[0])
+    min_z, max_z = np.min(np.min(template, axis = 0)), np.max(np.max(template, axis = 0))
+
+    ax.set_xlim(min_x, max_x)
+    ax.set_ylim(min_z, max_y)
+    ax.set_zlim(min_z, max_z)"""
+
+    # ax.zaxis.set_major_locator(LinearLocator(10))
+    # ax.zaxis.set_major_formatter(FormatStrFormatter('%.5f'))
+    # limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz'])
+    # ax.set_box_aspect(np.ptp(limits, axis=1))
+    # fig.colorbar(surf, shrink=0.5, aspect=5)
+    # ax.set_xlim3d(-max(self.a, self.b), max(self.a, self.b))
+    # ax.set_ylim3d(-max(self.a, self.b), max(self.a, self.b))
+
+    """min_x, max_x = np.min(X_grid[0]), np.max(X_grid[0])
+    min_y, max_y = np.min(Y_grid[0]), np.max(Y_grid[0])
+    min_z, max_z = np.min(np.min(template, axis = 0)), np.max(np.max(template, axis = 0))
+
+    max_range = np.array([max_x - min_x, max_y - min_y, max_z - min_z]).max() / 2.0
+
+    mid_x = (max_x + min_x) * 0.5
+    mid_y = (max_y + min_y) * 0.5
+    mid_z = (max_z + min_z) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)"""
+    plt.draw()
+    plt.pause(0.001)
 
 
 # Drawing arrows: https://stackoverflow.com/a/22867877
 class Arrow3D(FancyArrowPatch):
     def __init__(self, xs, ys, zs, *args, **kwargs):
-        FancyArrowPatch.__init__(self, (0,0), (0,0), *args, **kwargs)
+        FancyArrowPatch.__init__(self, (0, 0), (0, 0), *args, **kwargs)
         self._verts3d = xs, ys, zs
 
     def draw(self, renderer):
         xs3d, ys3d, zs3d = self._verts3d
         xs, ys, zs = proj3d.proj_transform(xs3d, ys3d, zs3d, renderer.M)
-        self.set_positions((xs[0],ys[0]),(xs[1],ys[1]))
-        FancyArrowPatch.draw(self, renderer,)
+        self.set_positions((xs[0], ys[0]), (xs[1], ys[1]))
+        FancyArrowPatch.draw(self, renderer, )
 
 
-def plot_path(ax, vertices: [[]], color="g"):
+class Visualizer:
+    def __init__(self):
+        self.fig_init = plt.figure()
+        self.axs_init = self.fig_init.add_subplot(111, projection='3d')
+        self.fig_init.canvas.set_window_title('Initial Path')
+        self.fig_init.tight_layout()
+        self.fig_init.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
 
-    for i_ in range(1,len(vertices)):
-        a = Arrow3D([vertices[i_-1][0], vertices[i_][0]],
-                    [vertices[i_-1][1], vertices[i_][1]],
-                    [vertices[i_-1][2], vertices[i_][2]], mutation_scale=10,
-                    lw=1, arrowstyle="-|>", color=color)
-        a.set_zorder(5)
-        ax.add_artist(a)
+        self.final_path_fig, self.final_path_ax = plt.subplots(subplot_kw={'projection': '3d'})
+        self.final_path_fig.tight_layout()
+        self.final_path_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
+        self.final_path_fig.canvas.set_window_title('Constrained Path')
+
+        self.fig_distrib_hist = plt.figure()
+        self.fig_distrib_hist.canvas.set_window_title('Surface distribution')
+        self.ax_distrib_hist = self.fig_distrib_hist.add_subplot(111)
+        self.ax_distrib_hist.set_xlabel('deposition thickness (mm)')
 
 
-def plot_normals(ax, vertices: [[]], directions: [[]], norm_length = 0.25, color='r') -> None:
-    vertices = np.array(vertices)
-    directions = np.array(directions)
+    def mesh_view_adjust(self, mesh):
+        for ax in [self.axs_init, self.final_path_ax]:
+            # for ax in axr:
+            ax.relim()
+            # update ax.viewLim using the new dataLim
+            ax.autoscale_view()
+            min_lim = min(mesh.bounds[0, :])
+            max_lim = max(mesh.bounds[1, :])
+            ax.set_xlim3d(mesh.bounds[0][0] - 0.5, mesh.bounds[1][0] + 0.5)
+            ax.set_ylim3d(mesh.bounds[0][1] - 0.5, mesh.bounds[1][1])
+            ax.set_zlim3d(mesh.bounds[0][2], mesh.bounds[1][2] + 0.5)
 
-    for i_ in range(len(vertices)):
-        end = vertices[i_] + norm_length*directions[i_]
-        a = Arrow3D([vertices[i_][0], end[0]],
-                    [vertices[i_][1], end[1]],
-                    [vertices[i_][2], end[2]], mutation_scale=10,
-                    lw=1, arrowstyle="-|>", color=color)
-        a.set_zorder(5)
-        ax.add_artist(a)
+            limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz'])
+            ax.set_box_aspect(np.ptp(limits, axis=1))
+        # plot the ground plane
+        xx, yy = np.meshgrid(np.arange(mesh.bounds[0][0], mesh.bounds[1][0], 0.2),
+                             np.arange(mesh.bounds[0][1], mesh.bounds[1][1], 0.2))
+        z = np.full((len(xx), len(xx[0])), 0)
+        self.final_path_ax.plot_surface(xx, yy, z, alpha=0.5, zorder=-1)
+        plt.draw()
+        plt.pause(0.001)
+
+    def draw_mesh(self, mesh):
+        mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
+        # mplot.set_alpha(0.8)
+        mplot.set_facecolor('grey')
+        # mplot.set_edgecolor('black')
+        mplot.set_sort_zpos(-1)
+        self.axs_init.add_collection3d(mplot)
+
+        mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
+        # mplot.set_alpha(0.8)
+        mplot.set_facecolor('cornflowerblue')
+        # mplot.set_edgecolor('k')
+        mplot.set_sort_zpos(-1)
+        self.final_path_ax.add_collection3d(mplot)
+
+        plt.draw()
+        plt.pause(0.001)

@@ -11,13 +11,13 @@ def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientati
     np.nan_to_num(g2_profile, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
 
     # Padding
-    padding = int(overlap_dist/gun_model.resolution)+1
+    padding = int(overlap_dist/gun_model.sim_resolution)+1
     g1_profile = np.pad(g1_profile, (0, padding), 'constant', constant_values=(0, 0))
     g2_profile = np.pad(g2_profile, (0, padding), 'constant', constant_values=(0, 0))
 
     # Flip right-side half profile
     g2_profile = np.flip(g2_profile)
-    x_locations = np.arange(0,  g1_profile.shape[0], step = 1)*gun_model.resolution
+    x_locations = np.arange(0,  g1_profile.shape[0], step = 1)*gun_model.sim_resolution
 
     if visualize:
         fig, ax = plt.subplots(figsize=(5,3))
@@ -42,7 +42,7 @@ def opt_wrapper(overlap_dist, gun_model, z_orientation_1, z_orientation_2 ):
 
 def get_optimal_overlap_distance(gun_model, z_orientation_1, z_orientation_2) -> float:
     x = np.array([0.1])
-    result = least_squares(opt_wrapper, x, args=(gun_model, z_orientation_1, z_orientation_2), gtol=None, diff_step= gun_model.resolution)
+    result = least_squares(opt_wrapper, x, args=(gun_model, z_orientation_1, z_orientation_2), gtol=None, diff_step= gun_model.sim_resolution)
 
     print('result', result)
     print('values', result.x)
@@ -103,7 +103,7 @@ def get_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation_
     print('full_canvas_2_padded', full_canvas_2_padded.shape)
     print('canvas_1.shape', canvas_1.shape)
     print('X_grid', X_grid.shape)
-    gun_model.visualize_deposition(combined, X_grid, Y_grid)
+    viz_utils.visualize_deposition(combined, X_grid, Y_grid)
 
 
 
