@@ -2,6 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+import numpy as np
 import trimesh
 import itertools
 import copy
@@ -14,20 +15,24 @@ import open3d as o3d
 import surface_selection_tool
 import viz_utils
 import seaborn as sns
+import warnings
 
-mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
+# warnings.filterwarnings('error')
 
+mesh = trimesh.load_mesh('models/wall_type_1_large_angled.STL')
+
+use_eigen_vector_index          = 0
 constant_vel                    = 0.25  # m/s
 deposition_sim_time_resolution  = 0.05  # s
 tool_motion_time_resolution     = 0.5  # s
 standoff_dist                   = 0.5  # m
 vert_dist_threshold             = 0.05 # m
-adjacent_tool_pose_angle_threshold = np.radians(10.0)
-adjacent_vertex_angle_threshold = np.radians(10.0)
+adjacent_tool_pose_angle_threshold = np.radians(1.0)
+adjacent_vertex_angle_threshold = np.radians(1.0)
 direction_flag                  = False
-number_of_samples               = 3000
+number_of_samples               = 1000
 surface_sample_viz_size         = 20
-tool_pitch_speed_compensation   = False
+tool_pitch_speed_compensation   = True
 
 gun_model = SprayGunModel()
 
@@ -63,20 +68,26 @@ print("Eigenvector after sort: \n", eigen_vectors, "\n")
 print("Eigenvalues after sort: \n", eigen_values, "\n")
 
 start = np.min(mesh.vertices, axis=0) + eigen_vectors[:, 2] * (
-            eigen_values[2] * 10) + eigen_vectors[:, 0] * (slicing_distance- gun_model.a)/2
-stop = np.max(mesh.vertices, axis=0) + eigen_vectors[:, 0] * slicing_distance
-start[2] = stop[2] = 0
+            eigen_values[2] * 10) + eigen_vectors[:, use_eigen_vector_index] * (slicing_distance- gun_model.a)/2
+stop = np.max(mesh.vertices, axis=0) + eigen_vectors[:, use_eigen_vector_index] * slicing_distance
+if use_eigen_vector_index == 0:
+    start[2] = stop[2] = 0
+elif use_eigen_vector_index == 1:
+    start[0] = stop[0] = 0
+    start[1] = stop[1] = 0
+elif use_eigen_vector_index == 2:
+    start[1] = stop[1] = 0
 length = LA.norm(stop - start)
 print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
 print("Eigenvector: \n", eigen_vectors, "\n")
 
-viz_utils.plot_normals(visualizer.axs_init, [start], [eigen_vectors[:, 0]], norm_length=length, color='b')
+viz_utils.plot_normals(visualizer.axs_init, [start], [eigen_vectors[:, use_eigen_vector_index]], norm_length=length, color='b')
 print('eigen_vectors[:,0]', eigen_vectors[:, 0])
 
 # ################################# Slicing #####################################
 
 sections = mesh.section_multiplane(plane_origin=start,
-                                   plane_normal=eigen_vectors[:, 0],
+                                   plane_normal=eigen_vectors[:, use_eigen_vector_index],
                                    heights=np.arange(0, length, step=slicing_distance))
 print('sections', len(sections))
 sections = [s for s in sections if s]
@@ -119,6 +130,8 @@ for section_iter, section_path_group in enumerate(d3sections):
             subpath_tool_positions.append([x for x in new_ver2])
             subpath_tool_normals.append(this_face_normal)
             subpath_tool_normals.append(this_face_normal)
+
+            # plot_normals(visualizer.axs_init, vertices=[np.array(new_ver1)], directions=[np.array(this_face_normal)])
 
         # check first 2 z values and correct the subpaths' direction
         # plot_path(visualizer.axs_init, np.array(subpath_tool_positions))
@@ -341,12 +354,24 @@ def update(frame_number, scatter, deposition_thickness):
         time_scale = 1.0
         if tool_pitch_speed_compensation:
             time_scale = 1.0/ surface_scaling(gun_model.h, actual_norm_dist, surface_normal, tool_pos_to_point, continuous_tool_normals[j])
-        if j%2==0:
+        if j%5==0:
             print(f'time_scale {time_scale: .3f}')
             visualizer.ax_distrib_hist.cla()
             # visualizer.ax_distrib_hist.hist(deposition_thickness, color='blue', edgecolor='black', bins='auto', density=False)
             visualizer.ax_distrib_hist.set_xlabel('deposition thickness (mm)')
-            sns.histplot(deposition_thickness * 1000, kde=True, ax=visualizer.ax_distrib_hist)
+            binwidth = 0.02
+            min_val,max_val = np.min(deposition_thickness)*1000, np.max(deposition_thickness)*1000
+            val_width = (max_val - min_val)
+            n_bins = int(val_width / binwidth)
+            if n_bins==0:
+                n_bins=1
+            print('bins', n_bins, val_width)
+            sns.histplot(deposition_thickness * 1000, kde=True, bins=n_bins, ax=visualizer.ax_distrib_hist) # , binrange=(min_val, max_val)
+            arange =  np.arange(min_val , max_val , binwidth)
+            print('np.arange(min_val , max_val , binwidth)', arange, 'max', max_val)
+            # visualizer.ax_distrib_hist.set_xticks(np.arange(min_val -binwidth/2, max_val +binwidth/2, binwidth))
+            #if arange.shape[0] > 0:
+            #     visualizer.ax_distrib_hist.set_xlim(0, arange[-1]+binwidth/2)
             plt.draw()
         # time_scale = actual_norm_dist/standoff_dist
         # print('time_scale', time_scale, 'actual_norm_dist', actual_norm_dist, 'standoff_dist', standoff_dist)
