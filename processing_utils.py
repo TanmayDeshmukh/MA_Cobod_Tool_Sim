@@ -77,10 +77,10 @@ def interpolate_tool_motion(all_tool_locations: [], all_tool_normals: [], sample
             so = np.sin(omega)
             if omega in [0.0, np.inf, np.nan]:
                 # Two normals in the same direction, no need for slerp
-                continuous_tool_normals = [-normal_pair[0]] * int(n_samples)
+                continuous_tool_normals = [normal_pair[0]] * int(n_samples)
             else:
                 # Spherical interpolation
-                continuous_tool_normals = [-((np.sin((1.0 - t) * omega) / so) * n0 + (np.sin(t * omega) / so) * n1) for t in
+                continuous_tool_normals = [((np.sin((1.0 - t) * omega) / so) * n0 + (np.sin(t * omega) / so) * n1) for t in
                                            np.arange(0.0, 1.0, 1.0 / n_samples)]
             while len(continuous_tool_normals) > len(continuous_tool_positions):
                 continuous_tool_normals.pop(-1)
@@ -122,8 +122,62 @@ def limit_tool_positions(all_tool_positions, surface_projected_positions,  all_t
     return constrained_tool_positions, constrained_tool_normals
 
 
+def limit_tool_position(desired_tool_position, surface_projected_position, desired_tool_normal ) -> (np.ndarray, np.ndarray):
+
+    reachable, new_position = can_tool_reach_position(desired_tool_position)
+    new_normal = desired_tool_normal
+    if not reachable:
+        new_normal = surface_projected_position-new_position
+        new_normal /= LA.norm(new_normal)
+
+    return new_position, new_normal
+
+
+def get_intersection_point(tool_position, tool_normal, mesh, ray_mesh_intersector, point_sample_tree):
+
+    intersection_location, index_ray, intersection_index_tri = ray_mesh_intersector.intersects_location(
+        [tool_position],
+        [tool_normal])
+    surface_normal = []
+    if len(intersection_location) > 0:
+        intersection_location = intersection_location[0]
+        surface_normal = mesh.face_normals[intersection_index_tri[0]]
+    else:
+        # no solution found
+        intersection_location = get_virtual_intersection_point(tool_position, tool_normal, point_sample_tree)
+        surface_normal = -tool_normal
+        print('intersection_location', intersection_location, 'surface_normal', surface_normal)
+    return intersection_location, surface_normal
+
+
+def get_virtual_intersection_point(tool_position, tool_normal, point_sample_tree):
+    print('points ', point_sample_tree.query(tool_position, k=100))
+    closest_points = point_sample_tree.data[point_sample_tree.query(tool_position, k=100)[1]]
+
+    print('closest_point', closest_points)
+
+    shortest_perp_dist = 1000
+    clostest_point = []
+
+    for point in closest_points:
+        tool_pos_to_point = point - tool_position
+        tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
+        tool_pos_to_point /= tool_pos_to_point_dist
+
+        angle_normal_to_point = angle_between_vectors(tool_pos_to_point, tool_normal)
+        normal_dist_h_dash = np.cos(angle_normal_to_point) * tool_pos_to_point_dist
+        rp = tool_pos_to_point * tool_pos_to_point_dist - tool_normal * normal_dist_h_dash
+
+        rp_dist = LA.norm(rp)
+        if rp_dist< shortest_perp_dist:
+            print('shorter')
+            shortest_perp_dist = rp_dist
+            clostest_point = point-rp
+
+    return clostest_point
+
 def affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
-                                       sample_face_indexes, intersection_location,
+                                       surface_normal, intersection_location,
                                        tool_position, tool_normal,
                                        tool_major_axis_vec, tool_minor_axis_vec,
                                        gun_model, deposition_sim_time_resolution, scatter):
@@ -150,7 +204,6 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
         if gun_model.check_point_validity(x, y):
 
             # Estimate deposition thickness for this point
-            surface_normal = mesh.face_normals[sample_face_indexes[point_index]]
             deposition_at_h = gun_model.deposition_intensity(x, y)
             multiplier = ((gun_model.h / tool_pos_to_point_dist) ** 2) * np.dot(surface_normal,
                                                                                 tool_pos_to_point) / (
