@@ -9,6 +9,7 @@ import copy
 from scipy import spatial
 from overlap_optimisation import *
 from processing_utils import *
+from trajectory_generation import TrajectoryGenerator
 import json
 from matplotlib.animation import FuncAnimation
 import open3d as o3d
@@ -22,20 +23,16 @@ import warnings
 mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 
 use_eigen_vector_index          = 0
-constant_vel                    = 0.5  # m/s
+constant_vel                    = 0.25  # m/s
 deposition_sim_time_resolution  = 0.05  # s
-tool_motion_time_resolution     = 0.2  # s
+tool_motion_time_resolution     = 0.5  # s
 standoff_dist                   = 0.5  # m
-vert_dist_threshold             = 0.05 # m
-adjacent_tool_pose_angle_threshold = np.radians(1.0)
-adjacent_vertex_angle_threshold = np.radians(1.0)
-direction_flag                  = False
-number_of_samples               = 1000
+
+number_of_samples               = 3000
 surface_sample_viz_size         = 20
 tool_pitch_speed_compensation   = True
 
 gun_model = SprayGunModel()
-
 visualizer = viz_utils.Visualizer()
 
 slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
@@ -47,7 +44,6 @@ visualizer.mesh_view_adjust(mesh)
 
 faces_mask = surface_selection_tool.get_mask_triangle_indices(mesh)
 mesh.update_faces(faces_mask)
-
 # Remove all vertices in the current mesh which are not referenced by a face.
 mesh.remove_unreferenced_vertices()
 mesh.remove_infinite_values()
@@ -99,95 +95,10 @@ face_indices = [path.metadata['face_index'] for path in sections]
 face_normals = [mesh.face_normals[segment_face_indices] for segment_face_indices in face_indices]
 print('mesh attrib', len(mesh.vertex_normals))
 
-vert_iter = 0
-section_end_vert_pairs = []
-all_tool_locations = []
-all_tool_normals = []
+# ############################ Trajectory generation ##############################
 
-# ############################ Ordering, Filtering, Connecting ##############################
-
-for section_iter, section_path_group in enumerate(d3sections):
-    face_indices = section_path_group.metadata['face_index']
-    new_entities = []
-    all_verts_this_section = []
-    tool_normals_this_section = []
-    direction_flag = not direction_flag
-    face_count_up = 0
-    for subpath_iter, subpath in enumerate(section_path_group.entities):
-        subpath_tool_positions = []
-        subpath_tool_normals = []
-        for line_segment_index in range(len(subpath.points) - 1):
-            this_face_normal = mesh.face_normals[face_indices[face_count_up]]
-            face_count_up += 1
-
-            vert1_index, vert2_index = subpath.points[line_segment_index], subpath.points[line_segment_index + 1]
-            vert1, vert2 = section_path_group.vertices[vert1_index], section_path_group.vertices[vert2_index]
-
-            new_ver1 = this_face_normal * standoff_dist + vert1
-            new_ver2 = this_face_normal * standoff_dist + vert2
-
-            subpath_tool_positions.append([x for x in new_ver1])
-            subpath_tool_positions.append([x for x in new_ver2])
-            subpath_tool_normals.append(-this_face_normal)
-            subpath_tool_normals.append(-this_face_normal)
-
-            # plot_normals(visualizer.axs_init, vertices=[np.array(new_ver1)], directions=[np.array(this_face_normal)])
-
-        # check first 2 z values and correct the subpaths' direction
-        # plot_path(visualizer.axs_init, np.array(subpath_tool_positions))
-
-        if (subpath_tool_positions[0][2] > subpath_tool_positions[1][2]) ^ direction_flag:
-            subpath_tool_positions.reverse()
-            subpath_tool_normals.reverse()
-
-        all_verts_this_section.append(subpath_tool_positions)
-        tool_normals_this_section.append(subpath_tool_normals)
-
-        subpath_tool_positions = np.array(subpath_tool_positions)
-
-    # Correct the order of subpaths first (bubble sorting)
-    for i in range(len(all_verts_this_section)):
-        for j in range(len(all_verts_this_section) - 1):
-            if (all_verts_this_section[j][0][2] > all_verts_this_section[j + 1][0][2]) ^ direction_flag:
-                all_verts_this_section[j], all_verts_this_section[j + 1] = all_verts_this_section[j + 1], \
-                                                                           all_verts_this_section[j]
-                tool_normals_this_section[j], tool_normals_this_section[j + 1] = tool_normals_this_section[j + 1], \
-                                                                                 tool_normals_this_section[j]
-
-    # Combine sub-paths if endpoints are close enough. This must be done before removing unnecessary intermediate points
-    # because the end points of the sub paths themselves might be unnecessary
-    combine_subpaths(all_verts_this_section, tool_normals_this_section, vert_dist_threshold, adjacent_tool_pose_angle_threshold)
-
-    # Remove unnecessary intermediate points
-    for vert_group, norms in zip(all_verts_this_section, tool_normals_this_section):
-        filter_sample_points(vert_group, norms, adjacent_tool_pose_angle_threshold=adjacent_tool_pose_angle_threshold,
-                             adjacent_vertex_angle_threshold=adjacent_vertex_angle_threshold,
-                             inter_ver_dist_thresh=vert_dist_threshold)
-        vert_group = np.array(vert_group)
-        visualizer.axs_init.scatter(vert_group[:, 0], vert_group[:, 1],
-                                    vert_group[:, 2], s=2.5, c='r')
-
-    # Extend tool travel outward for better coverage
-    for subpath_tool_positions in all_verts_this_section:
-        start_direction = np.array(subpath_tool_positions[0]) - np.array(subpath_tool_positions[1])
-        start_direction /= LA.norm(start_direction)
-        start_direction *= gun_model.b
-        end_direction = np.array(subpath_tool_positions[-1]) - np.array(subpath_tool_positions[-2])
-        end_direction /= LA.norm(end_direction)
-        end_direction *= gun_model.b
-
-        subpath_tool_positions[0] = [sum(x) for x in zip(subpath_tool_positions[0], start_direction.tolist())]
-        subpath_tool_positions[-1] = [sum(x) for x in zip(subpath_tool_positions[-1], end_direction.tolist())]
-
-    all_tool_normals += tool_normals_this_section
-    tool_normals_this_section = -np.array(list(itertools.chain.from_iterable(tool_normals_this_section)))
-
-    # Visualization of activated(g) and deactivated(k) tool travel within this section cut
-    all_tool_locations += all_verts_this_section
-    all_verts_this_section = list(itertools.chain.from_iterable(all_verts_this_section))
-    all_verts_this_section = np.array(all_verts_this_section)
-    section_end_vert_pairs += [all_verts_this_section[-1]] if section_iter == 0 else [all_verts_this_section[0],
-                                                                                      all_verts_this_section[-1]]
+trajectory_generator = TrajectoryGenerator(mesh=mesh, gun_model=gun_model)
+all_tool_locations, all_tool_normals, section_end_vert_pairs = trajectory_generator.generate_trajectory(d3sections)
 
 # all_tool_locations = [ [v0 v1 v2 v3 .. vn ] , [v0 v1 v2 v3 .. vm] .. ]
 # tool must be ON and move through [v0 v1 v2 v3 .. vn] continuously,
@@ -198,7 +109,6 @@ for i, (all_verts_this_section, tool_normals_this_section) in enumerate(zip(all_
     plot_path(visualizer.axs_init, vertices=all_verts_this_section)
     viz_utils.plot_normals(visualizer.axs_init, vertices=all_verts_this_section,
                            directions=tool_normals_this_section)
-
     """
     if i > 0:
         plot_path(visualizer.axs_init, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]],
@@ -207,7 +117,6 @@ for i, (all_verts_this_section, tool_normals_this_section) in enumerate(zip(all_
                   color='k')
         vert_iter += 1
     """
-
 for i in range(int(len(section_end_vert_pairs) / 2)):
     plot_path(visualizer.axs_init, vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
 
@@ -252,9 +161,8 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
         intersection_location, surface_normal = get_intersection_point(current_tool_position,  current_tool_normal,
                                                                        mesh, ray_mesh_intersector, sample_tree)
 
-        # current_tool_position, current_tool_normal = limit_tool_position(current_tool_position, intersection_location,
-        #                                                                  current_tool_normal)
-
+        current_tool_position, current_tool_normal = limit_tool_position(current_tool_position, intersection_location,
+                                                                         current_tool_normal)
 
         tool_pos_to_point = current_tool_position-intersection_location
         actual_norm_dist = LA.norm(tool_pos_to_point)
@@ -334,7 +242,6 @@ def update(frame_number, scatter, deposition_thickness):
 
             #viz_utils.plot_normals(final_rendering_ax, continuous_tool_positions, tool_minor_axis_vecs, norm_length=0.3, color='g')
 
-        print('new_position', j, 'len', len(continuous_tool_positions))
         intersection_location, surface_normal = get_intersection_point(continuous_tool_positions[j], continuous_tool_normals[j],
                                                                        mesh, ray_mesh_intersector, sample_tree)
 
@@ -355,7 +262,7 @@ def update(frame_number, scatter, deposition_thickness):
             #                            s=surface_sample_viz_size,
             #                            picker=2, c='r')  # , c=deposition_thickness, cmap='coolwarm')
 
-            print(f'time_scale {time_scale: .3f}')
+            print(f'time_scale {time_scale: .3f}, actual_norm_dist {actual_norm_dist: .3f}, ')
             visualizer.ax_distrib_hist.cla()
             # visualizer.ax_distrib_hist.hist(deposition_thickness, color='blue', edgecolor='black', bins='auto', density=False)
             visualizer.ax_distrib_hist.set_xlabel('deposition thickness (mm)')
@@ -390,21 +297,6 @@ def update(frame_number, scatter, deposition_thickness):
             j=0
 
     return scatter,
-""" 
-for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions[:], tool_normals[:]):
-    
-
-    print('\nfiltering')
-    continuous_tool_positions, continuous_tool_normals = limit_tool_positions(continuous_tool_positions, np.array(sorted_intersection_locations), continuous_tool_normals)
-    print('Filtered')
-    affected_points_for_tool_positions(deposition_thickness, sample_tree, mesh,
-                                       sample_face_index, sorted_intersection_locations,
-                                       continuous_tool_positions, continuous_tool_normals,
-                                       tool_major_axis_vecs, tool_minor_axis_vecs,
-                                       gun_model, deposition_sim_time_resolution, scatter)
-
-print('deposition_thickness', deposition_thickness)
-"""
 
 # scatter.set_clim(vmin=min(deposition_thickness), vmax=max(deposition_thickness))
 # scatter.set_color()
