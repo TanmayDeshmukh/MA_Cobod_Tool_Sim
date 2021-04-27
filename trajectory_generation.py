@@ -97,7 +97,7 @@ class TrajectoryGenerator:
             all_tool_normals += tool_normals_this_section
             tool_normals_this_section = -np.array(list(itertools.chain.from_iterable(tool_normals_this_section)))
 
-            # Visualization of activated(g) and deactivated(k) tool travel within this section cut
+            # Visualization of activated(g) and2    `deactivated(k) tool travel within this section cut
             all_tool_locations += all_verts_this_section
             all_verts_this_section = list(itertools.chain.from_iterable(all_verts_this_section))
             all_verts_this_section = np.array(all_verts_this_section)
