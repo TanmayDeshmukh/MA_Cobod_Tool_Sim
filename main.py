@@ -25,7 +25,7 @@ mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 use_eigen_vector_index          = 0
 constant_vel                    = 0.25  # m/s
 deposition_sim_time_resolution  = 0.05  # s
-tool_motion_time_resolution     = 0.5  # s
+tool_motion_time_resolution     = 1.0  # s
 standoff_dist                   = 0.5  # m
 
 number_of_samples               = 3000
@@ -33,14 +33,13 @@ surface_sample_viz_size         = 20
 tool_pitch_speed_compensation   = True
 
 gun_model = SprayGunModel()
-visualizer = viz_utils.Visualizer()
 
 slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
 
 get_overlap_profile(gun_model, slicing_distance - gun_model.a/2, 0, 0)
 get_1d_overlap_profile(gun_model, slicing_distance - gun_model.a/2, 0, 0, True)
 
-visualizer.mesh_view_adjust(mesh)
+viz_utils.visualizer.mesh_view_adjust(mesh)
 
 faces_mask = surface_selection_tool.get_mask_triangle_indices(mesh)
 mesh.update_faces(faces_mask)
@@ -50,7 +49,7 @@ mesh.remove_infinite_values()
 mesh.export('surface_only.stl')
 
 # ############### Full model #################
-visualizer.draw_mesh(mesh)
+viz_utils.visualizer.draw_mesh(mesh)
 
 # ############################### PCA #################################
 
@@ -77,7 +76,7 @@ length = LA.norm(stop - start)
 print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
 print("Eigenvector: \n", eigen_vectors, "\n")
 
-viz_utils.plot_normals(visualizer.axs_init, [start], [eigen_vectors[:, use_eigen_vector_index]], norm_length=length, color='b')
+# viz_utils.plot_normals(viz_utils.visualizer.axs_init, [start], [eigen_vectors[:, use_eigen_vector_index]], norm_length=length, color='b')
 print('eigen_vectors[:,0]', eigen_vectors[:, 0])
 
 # ################################# Slicing #####################################
@@ -106,19 +105,19 @@ all_tool_locations, all_tool_normals, section_end_vert_pairs = trajectory_genera
 # Vert groups may or may not be from the same section
 
 for i, (all_verts_this_section, tool_normals_this_section) in enumerate(zip(all_tool_locations, all_tool_normals)):
-    plot_path(visualizer.axs_init, vertices=all_verts_this_section)
-    viz_utils.plot_normals(visualizer.axs_init, vertices=all_verts_this_section,
+    plot_path(viz_utils.visualizer.axs_init, vertices=all_verts_this_section)
+    viz_utils.plot_normals(viz_utils.visualizer.axs_init, vertices=all_verts_this_section,
                            directions=tool_normals_this_section)
     """
     if i > 0:
-        plot_path(visualizer.axs_init, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]],
+        plot_path(viz_utils.visualizer.axs_init, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]],
                   color='k')
-        plot_path(visualizer.final_path_ax, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]],
+        plot_path(viz_utils.visualizer.final_path_ax, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]],
                   color='k')
         vert_iter += 1
     """
 for i in range(int(len(section_end_vert_pairs) / 2)):
-    plot_path(visualizer.axs_init, vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
+    plot_path(viz_utils.visualizer.axs_init, vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
 
 plt.draw()
 plt.pause(0.001)
@@ -152,8 +151,8 @@ total_time_count = 0
 for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions, tool_normals):
     time_stamp = 0
 
-    plot_path(visualizer.final_path_ax, continuous_tool_positions)
-    viz_utils.plot_normals(visualizer.final_path_ax, continuous_tool_positions, continuous_tool_normals)
+    plot_path(viz_utils.visualizer.final_path_ax, continuous_tool_positions)
+    viz_utils.plot_normals(viz_utils.visualizer.final_path_ax, continuous_tool_positions, continuous_tool_normals)
 
     for i, (current_tool_position, current_tool_normal) in enumerate(
             zip(continuous_tool_positions, continuous_tool_normals)):
@@ -211,7 +210,7 @@ def update(frame_number, scatter, deposition_thickness):
               deposition_thickness.max() * 1000, 'mm\ndiff: ', (deposition_thickness.max()-deposition_thickness.min())*1000,
               'mm\nstd:', deposition_thickness.std(0) * 1000, '\nmean:', deposition_thickness.mean(0) * 1000,
               '\nmedian:', np.median(deposition_thickness)*1000)
-        #sns.distplot(deposition_thickness*1000, ax=visualizer.ax_distrib_hist)
+        #sns.distplot(deposition_thickness*1000, ax=viz_utils.visualizer.ax_distrib_hist)
         # plt.draw()
         #plt.show()
         animation.event_source.stop()
@@ -263,9 +262,9 @@ def update(frame_number, scatter, deposition_thickness):
             #                            picker=2, c='r')  # , c=deposition_thickness, cmap='coolwarm')
 
             print(f'time_scale {time_scale: .3f}, actual_norm_dist {actual_norm_dist: .3f}, ')
-            visualizer.ax_distrib_hist.cla()
-            # visualizer.ax_distrib_hist.hist(deposition_thickness, color='blue', edgecolor='black', bins='auto', density=False)
-            visualizer.ax_distrib_hist.set_xlabel('deposition thickness (mm)')
+            viz_utils.visualizer.ax_distrib_hist.cla()
+            # viz_utils.visualizer.ax_distrib_hist.hist(deposition_thickness, color='blue', edgecolor='black', bins='auto', density=False)
+            viz_utils.visualizer.ax_distrib_hist.set_xlabel('deposition thickness (mm)')
             binwidth = 0.01
             min_val,max_val = np.min(deposition_thickness)*1000, np.max(deposition_thickness)*1000
             val_width = (max_val - min_val)
@@ -273,12 +272,12 @@ def update(frame_number, scatter, deposition_thickness):
             if n_bins==0:
                 n_bins=1
             #print('bins', n_bins, val_width)
-            sns.histplot(deposition_thickness * 1000, kde=True, bins=n_bins, ax=visualizer.ax_distrib_hist) # , binrange=(min_val, max_val)
+            sns.histplot(deposition_thickness * 1000, kde=True, bins=n_bins, ax=viz_utils.visualizer.ax_distrib_hist) # , binrange=(min_val, max_val)
             arange =  np.arange(min_val , max_val , binwidth)
             # print('np.arange(min_val , max_val , binwidth)', arange, 'max', max_val)
-            # visualizer.ax_distrib_hist.set_xticks(np.arange(min_val -binwidth/2, max_val +binwidth/2, binwidth))
+            # viz_utils.visualizer.ax_distrib_hist.set_xticks(np.arange(min_val -binwidth/2, max_val +binwidth/2, binwidth))
             #if arange.shape[0] > 0:
-            #     visualizer.ax_distrib_hist.set_xlim(0, arange[-1]+binwidth/2)
+            #     viz_utils.visualizer.ax_distrib_hist.set_xlim(0, arange[-1]+binwidth/2)
             plt.draw()
         # time_scale = actual_norm_dist/standoff_dist
         # print('time_scale', time_scale, 'actual_norm_dist', actual_norm_dist, 'standoff_dist', standoff_dist)

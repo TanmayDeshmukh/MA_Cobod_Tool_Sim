@@ -12,7 +12,7 @@ def plot_path(ax, vertices: [[]], color="g"):
         a = Arrow3D([vertices[i_ - 1][0], vertices[i_][0]],
                     [vertices[i_ - 1][1], vertices[i_][1]],
                     [vertices[i_ - 1][2], vertices[i_][2]], mutation_scale=10,
-                    lw=1, arrowstyle="-|>", color=color)
+                    lw=2, arrowstyle="-|>, head_width=0.4", color=color)
         a.set_zorder(1000)
         ax.add_artist(a)
 
@@ -26,7 +26,7 @@ def plot_normals(ax, vertices: [[]], directions: [[]], norm_length=0.25, color='
         a = Arrow3D([vertices[i_][0], end[0]],
                     [vertices[i_][1], end[1]],
                     [vertices[i_][2], end[2]], mutation_scale=10,
-                    lw=1, arrowstyle="-|>", color=color)
+                    lw=2, arrowstyle="-|>, head_width=0.3", color=color)
         a.set_zorder(1000)
         ax.add_artist(a)
 
@@ -97,9 +97,27 @@ class Arrow3D(FancyArrowPatch):
 
 class Visualizer:
     def __init__(self):
+        self.fig_slice = plt.figure()
+        self.axs_slice = self.fig_slice.add_subplot(111, projection='3d')
+        self.fig_slice.canvas.set_window_title('Slicing')
+        self.fig_slice.tight_layout()
+        self.fig_slice.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
+
+        self.fig_unord = plt.figure()
+        self.axs_unord = self.fig_unord.add_subplot(111, projection='3d')
+        self.fig_unord.canvas.set_window_title('Unordered path')
+        self.fig_unord.tight_layout()
+        self.fig_unord.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
+
+        self.fig_temp = plt.figure()
+        self.axs_temp = self.fig_temp.add_subplot(111, projection='3d')
+        self.fig_temp.canvas.set_window_title('Ordered path')
+        self.fig_temp.tight_layout()
+        self.fig_temp.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
+
         self.fig_init = plt.figure()
         self.axs_init = self.fig_init.add_subplot(111, projection='3d')
-        self.fig_init.canvas.set_window_title('Initial Path')
+        self.fig_init.canvas.set_window_title('Initial path')
         self.fig_init.tight_layout()
         self.fig_init.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
 
@@ -113,9 +131,10 @@ class Visualizer:
         self.ax_distrib_hist = self.fig_distrib_hist.add_subplot(111)
         self.ax_distrib_hist.set_xlabel('deposition thickness (mm)')
 
+        self.all_axs =  [self.axs_init, self.final_path_ax, self.axs_temp, self.axs_unord, self.axs_slice]
 
     def mesh_view_adjust(self, mesh):
-        for ax in [self.axs_init, self.final_path_ax]:
+        for ax in self.all_axs:
             # for ax in axr:
             ax.relim()
             # update ax.viewLim using the new dataLim
@@ -137,19 +156,17 @@ class Visualizer:
         plt.pause(0.001)
 
     def draw_mesh(self, mesh):
-        mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
-        # mplot.set_alpha(0.8)
-        mplot.set_facecolor('grey')
-        # mplot.set_edgecolor('black')
-        mplot.set_sort_zpos(-1)
-        self.axs_init.add_collection3d(mplot)
+        for ax, col in zip(self.all_axs,
+                      ['grey', 'cornflowerblue', 'cornflowerblue', 'cornflowerblue', 'cornflowerblue']):
 
-        mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
-        # mplot.set_alpha(0.8)
-        mplot.set_facecolor('cornflowerblue')
-        # mplot.set_edgecolor('k')
-        mplot.set_sort_zpos(-1)
-        self.final_path_ax.add_collection3d(mplot)
+            mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
+            # mplot.set_alpha(0.8)
+            mplot.set_facecolor(col)
+            # mplot.set_edgecolor('black')
+            mplot.set_sort_zpos(-1)
+            ax.add_collection3d(mplot)
 
         plt.draw()
         plt.pause(0.001)
+
+visualizer = Visualizer()

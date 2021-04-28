@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import linalg as LA
 import itertools
-
+import viz_utils
 
 class TrajectoryGenerator:
 
@@ -32,6 +32,8 @@ class TrajectoryGenerator:
             for subpath_iter, subpath in enumerate(section_path_group.entities):
                 subpath_tool_positions = []
                 subpath_tool_normals = []
+                all_verts = section_path_group.vertices[subpath.points]
+                viz_utils.visualizer.axs_slice.scatter(all_verts[:, 0],all_verts[:, 1],all_verts[:, 2], s=5, c='r')
                 for line_segment_index in range(len(subpath.points) - 1):
                     this_face_normal = self.mesh.face_normals[face_indices[face_count_up]]
                     face_count_up += 1
@@ -51,6 +53,7 @@ class TrajectoryGenerator:
 
                 # check first 2 z values and correct the subpaths' direction
                 # plot_path(visualizer.axs_init, np.array(subpath_tool_positions))
+                viz_utils.plot_path(viz_utils.visualizer.axs_unord, vertices=np.array(subpath_tool_positions), color='g')
 
                 if (subpath_tool_positions[0][2] > subpath_tool_positions[1][2]) ^ self.direction_flag:
                     subpath_tool_positions.reverse()
@@ -60,7 +63,7 @@ class TrajectoryGenerator:
                 tool_normals_this_section.append(subpath_tool_normals)
 
                 subpath_tool_positions = np.array(subpath_tool_positions)
-
+                viz_utils.plot_path(viz_utils.visualizer.axs_temp, vertices=subpath_tool_positions, color='g')
             # Correct the order of subpaths first (bubble sorting)
             for i in range(len(all_verts_this_section)):
                 for j in range(len(all_verts_this_section) - 1):
