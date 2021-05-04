@@ -18,17 +18,30 @@ def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientati
     # Flip right-side half profile
     g2_profile = np.flip(g2_profile)
     x_locations = np.arange(0,  g1_profile.shape[0], step = 1)*gun_model.sim_resolution
-
+    final_profile = g1_profile+g2_profile
     if visualize:
         fig, ax = plt.subplots(figsize=(5,3))
-        fig.canvas.set_window_title('Overlap optimization')
-        ax.plot(x_locations, g1_profile,'r')
-        ax.plot(x_locations, g2_profile, 'g')
-        ax.plot(x_locations, g1_profile+g2_profile, 'b')
+        fig.subplots_adjust(bottom=0.164)
+        ax.set_xlabel('Seperation distance (m)')
+        ax.set_ylabel('Deposition (m)')
+        ax.ticklabel_format(axis='y', style='sci', scilimits=(-5,-3))
+        actual_seperation_dist = float(overlap_dist)+gun_model.a
+        fig.canvas.set_window_title(f'Overlap optimization d={actual_seperation_dist: .2f}')
+        ax.plot(x_locations, g1_profile,'r', linestyle='-.')
+        ax.plot(x_locations, g2_profile, 'g', linestyle='-.')
+        ax.plot(x_locations, final_profile, 'b')
+        plt.axhline(y=np.max(final_profile), color='b', linestyle='dotted')
+        plt.axhline(y=np.min(final_profile), color='b', linestyle='dotted')
+        t = plt.text(x_locations[-1]/2, (np.min(final_profile)+np.max(final_profile))/2,
+
+                 f'max(g(d))-min(g(d)) = {(np.max(final_profile)-np.min(final_profile))*1000.0: .2f} e-3',
+                     ha = 'center', va='center', )
+        t.set_bbox(dict(facecolor='white', alpha=0.8, edgecolor='None'))
+
         plt.draw()
         plt.pause(0.001)
         # plt.show()
-    return g1_profile+g2_profile, x_locations
+    return final_profile, x_locations
 
 
 def cost_function(input_1d_profile) -> float:
@@ -110,7 +123,12 @@ def get_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation_
 if __name__ == '__main__':
     gun_model = SprayGunModel()
     d = get_optimal_overlap_distance(gun_model, np.radians(0), 0)
+    print('Optimal distance', d)
+    print('a, b', gun_model.a, gun_model.b)
+    get_1d_overlap_profile(gun_model, gun_model.a, 0, 0, True)
+    get_1d_overlap_profile(gun_model, gun_model.a/2, 0, 0, True)
     get_1d_overlap_profile(gun_model, d, 0, 0, True)
-    get_overlap_profile(gun_model, d, 0, 0)
+    get_1d_overlap_profile(gun_model, d*1.5, 0, 0, True)
+    # get_overlap_profile(gun_model, d, 0, 0)
     plt.show()
 

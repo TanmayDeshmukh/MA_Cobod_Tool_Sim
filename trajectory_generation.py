@@ -32,8 +32,12 @@ class TrajectoryGenerator:
             for subpath_iter, subpath in enumerate(section_path_group.entities):
                 subpath_tool_positions = []
                 subpath_tool_normals = []
+
                 all_verts = section_path_group.vertices[subpath.points]
-                viz_utils.visualizer.axs_slice.scatter(all_verts[:, 0],all_verts[:, 1],all_verts[:, 2], s=5, c='r')
+                viz_utils.visualizer.axs_slice.scatter(all_verts[:, 0],all_verts[:, 1],all_verts[:, 2], s=20, c='r')
+                viz_utils.plot_path(viz_utils.visualizer.axs_slice, vertices=all_verts,
+                                    color='g', lw=1, hw=0.1)
+
                 for line_segment_index in range(len(subpath.points) - 1):
                     this_face_normal = self.mesh.face_normals[face_indices[face_count_up]]
                     face_count_up += 1

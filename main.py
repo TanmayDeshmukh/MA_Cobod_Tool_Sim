@@ -184,9 +184,9 @@ with open('tool_positions.json', 'w') as outfile:
     json.dump(file_data, outfile, indent=2)
 
 
-sim_sample_dist = constant_vel * deposition_sim_time_resolution
-
 # ########### Create pose list from constant time interval ##############
+
+sim_sample_dist = constant_vel * deposition_sim_time_resolution
 all_tool_positions, tool_normals = interpolate_tool_motion(all_tool_locations, all_tool_normals, sim_sample_dist)
 
 total_tool_positions = [len(continuous_tool_positions) for continuous_tool_positions in all_tool_positions]

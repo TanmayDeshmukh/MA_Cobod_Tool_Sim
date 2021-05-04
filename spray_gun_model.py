@@ -5,16 +5,26 @@ import viz_utils
 
 
 class SprayGunModel:
-    def __init__(self, beta1=1.5, beta2=2.5, a=0.5, b=0.1, f_max=0.0005):
+    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(10), min_axis_angle = np.radians(5), f_max=0.0012):
         self.beta1 = beta1
         self.beta2 = beta2
-        self.a = a
-        self.b = b
+        self.maj_axis_angle = maj_axis_angle
+        self.min_axis_angle = min_axis_angle
+        self.set_h(0.5)
         self.f_max = f_max
         self.sim_resolution = 0.001
         self.viz_resolution = 0.01
         self.z_orientation = 0
+
+    def set_h(self, h: float):
         self.h = 0.5
+        self.a = np.tan(self.maj_axis_angle) / self.h  # 1.0
+        self.b = np.tan(self.min_axis_angle) / self.h  # 0.4
+
+
+    def visualize_spray_cone(self):
+        # TODO
+        pass
 
     def check_point_validity(self, x, y) -> bool:
         # (self.b * np.sqrt(1 - (x ** 2) / self.a ** 2))
@@ -76,15 +86,17 @@ class SprayGunModel:
         print('end_populating')
         return deposition_template, X_grid, Y_grid
 
+    def __str__(self):
+        return 'SprayGunModel('+str(vars(self))+')'
+
 
 if __name__ == '__main__':
     gun_model = SprayGunModel()
-
-    canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(0))
+    print('Gun Model', gun_model)
+    canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(-45))
     viz_utils.visualize_deposition(canvas, X_grid, Y_grid)
 
     prof, locations = gun_model.get_half_1d_profile(np.radians(0))
-    print('get_half_1d_profile', prof)
     # fig = plt.figure()
     # plt.plot(locations, prof)
     plt.show()

@@ -7,17 +7,17 @@ from mpl_toolkits import mplot3d
 from matplotlib.text import Annotation
 
 
-def plot_path(ax, vertices: [[]], color="g"):
+def plot_path(ax, vertices: [[]], color="g", lw=2, hw=0.4):
     for i_ in range(1, len(vertices)):
         a = Arrow3D([vertices[i_ - 1][0], vertices[i_][0]],
                     [vertices[i_ - 1][1], vertices[i_][1]],
                     [vertices[i_ - 1][2], vertices[i_][2]], mutation_scale=10,
-                    lw=2, arrowstyle="-|>, head_width=0.4", color=color)
+                    lw=lw, arrowstyle="-|>, head_width="+str(hw), color=color)
         a.set_zorder(1000)
         ax.add_artist(a)
 
 
-def plot_normals(ax, vertices: [[]], directions: [[]], norm_length=0.25, color='r') -> None:
+def plot_normals(ax, vertices: [[]], directions: [[]], norm_length=0.25, color='r', lw=2, hw=0.4) -> None:
     vertices = np.array(vertices)
     directions = np.array(directions)
 
@@ -26,7 +26,7 @@ def plot_normals(ax, vertices: [[]], directions: [[]], norm_length=0.25, color='
         a = Arrow3D([vertices[i_][0], end[0]],
                     [vertices[i_][1], end[1]],
                     [vertices[i_][2], end[2]], mutation_scale=10,
-                    lw=2, arrowstyle="-|>, head_width=0.3", color=color)
+                    lw=lw, arrowstyle="-|>, head_width="+str(hw), color=color)
         a.set_zorder(1000)
         ax.add_artist(a)
 
@@ -35,28 +35,33 @@ def visualize_deposition(template, X_grid, Y_grid):
     fig = plt.figure(figsize=(8, 3))
     fig.tight_layout()
     fig.canvas.set_window_title('Surface deposition intensity')
-    fig.subplots_adjust(left=0.05, right=0.95, top=1.3, bottom=-0.2)
+    fig.subplots_adjust(left=0.05, right=0.95, top=1.0, bottom=00.0)
     ax1 = fig.add_subplot(1, 2, 1)
     ax2 = fig.add_subplot(1, 2, 2, projection='3d')
     ax2.plot_surface(X_grid, Y_grid, template,
                      antialiased=False, cmap="coolwarm", lw=0.5, rstride=1, cstride=1, alpha=0.5)
     ax2.contour(X_grid, Y_grid, template, 10, lw=3, colors="k", linestyles="solid")
     # ax.contour(X_grid, Y_grid, template, zdir='z', offset=self.f_max*1.5, cmap="coolwarm")
-    ax2.contour(X_grid, Y_grid, template, zdir='x', offset=np.min(X_grid[0]), cmap="coolwarm")
-    ax2.contour(X_grid, Y_grid, template, zdir='y', offset=np.max(Y_grid[:, 0]), cmap="coolwarm")
-
+    # ax2.contour(X_grid, Y_grid, template, zdir='x', offset=-np.min(X_grid[0]), cmap="coolwarm")
+    # ax2.contour(X_grid, Y_grid, template, zdir='y', offset=np.max(Y_grid[:, 0]), cmap="coolwarm")
+    template = np.fliplr(template)
     ax1.imshow(template, extent=[np.min(X_grid[0]), np.max(X_grid[0]), np.min(Y_grid[:, 0]), np.max(Y_grid[:, 0])])
 
-    # limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz'])
-    # ax.set_box_aspect(np.ptp(limits, axis=1))
+    limits = np.array([getattr(ax2, f'get_{axis}lim')() for axis in 'xyz'])
 
-    """min_x, max_x = np.min(X_grid[0]), np.max(X_grid[0])
+    print('limits', limits)
+    print('np.ptp(limits, axis=1)', np.ptp(limits, axis=1))
+    pnp = np.ptp(limits, axis=1)
+    pnp[2] = pnp[2]*1000
+    ax2.set_box_aspect(pnp)
+
+    min_x, max_x = np.min(X_grid[0]), np.max(X_grid[0])
     min_y, max_y = np.min(Y_grid[0]), np.max(Y_grid[0])
     min_z, max_z = np.min(np.min(template, axis = 0)), np.max(np.max(template, axis = 0))
 
-    ax.set_xlim(min_x, max_x)
-    ax.set_ylim(min_z, max_y)
-    ax.set_zlim(min_z, max_z)"""
+    #ax2.set_xlim(min_x, max_x)
+    #ax2.set_ylim(min_z, max_y)
+    # ax2.set_zlim(min_z, max_z)
 
     # ax.zaxis.set_major_locator(LinearLocator(10))
     # ax.zaxis.set_major_formatter(FormatStrFormatter('%.5f'))
