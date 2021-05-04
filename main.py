@@ -23,16 +23,19 @@ import warnings
 mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
 
 use_eigen_vector_index          = 0
-constant_vel                    = 0.25  # m/s
+constant_vel                    = 0.5  # m/s
 deposition_sim_time_resolution  = 0.05  # s
 tool_motion_time_resolution     = 1.0  # s
-standoff_dist                   = 0.5  # m
+standoff_dist                   = 0.8  # m
 
 number_of_samples               = 3000
 surface_sample_viz_size         = 20
 tool_pitch_speed_compensation   = True
 
 gun_model = SprayGunModel()
+
+starting_slice_offset           = gun_model.a/3
+
 
 slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
 
@@ -59,40 +62,48 @@ idx = eigen_values.argsort()[::-1]
 eigen_values = eigen_values[idx]
 eigen_vectors = eigen_vectors[:, idx]
 
-print("Eigenvector after sort: \n", eigen_vectors, "\n")
-print("Eigenvalues after sort: \n", eigen_values, "\n")
 
-start = np.min(mesh.vertices, axis=0) + eigen_vectors[:, 2] * (
-            eigen_values[2] * 10) + eigen_vectors[:, use_eigen_vector_index] * (slicing_distance- gun_model.a)/2
-stop = np.max(mesh.vertices, axis=0) + eigen_vectors[:, use_eigen_vector_index] * slicing_distance
+print('Gun model a, b', gun_model.a, gun_model.b)
+ori_start = np.min(mesh.vertices, axis=0) # - eigen_vectors[:, use_eigen_vector_index] * (slicing_distance- gun_model.a) #  eigen_vectors[:, 2] * (eigen_values[2] * 10) +
+stop = np.max(mesh.vertices, axis=0) # + eigen_vectors[:, use_eigen_vector_index] * slicing_distance
 if use_eigen_vector_index == 0:
-    start[2] = stop[2] = 0
+    ori_start[2] = stop[2] = 0
 elif use_eigen_vector_index == 1:
-    start[0] = stop[0] = 0
-    start[1] = stop[1] = 0
+    ori_start[0] = stop[0] = 0
+    ori_start[1] = stop[1] = 0
 elif use_eigen_vector_index == 2:
-    start[1] = stop[1] = 0
-length = LA.norm(stop - start)
-print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
-print("Eigenvector: \n", eigen_vectors, "\n")
+    ori_start[1] = stop[1] = 0
 
-# viz_utils.plot_normals(viz_utils.visualizer.axs_init, [start], [eigen_vectors[:, use_eigen_vector_index]], norm_length=length, color='b')
-print('eigen_vectors[:,0]', eigen_vectors[:, 0])
+slice_direction = stop - ori_start
+length = LA.norm(slice_direction)
+slice_direction /= length
+start = ori_start + slice_direction*starting_slice_offset
+slice_direction = stop - start
+length = LA.norm(slice_direction)
+viz_utils.plot_path(viz_utils.visualizer.axs_slice, [ori_start ,start], color='b')
+
+# print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
+# print("Eigenvector: \n", eigen_vectors, "\n")
+
+viz_utils.plot_normals(viz_utils.visualizer.axs_slice, [start], [eigen_vectors[:, use_eigen_vector_index]], norm_length=length, color='b')
+# print('eigen_vectors[:,0]', eigen_vectors[:, 0])
 
 # ################################# Slicing #####################################
 
 sections = mesh.section_multiplane(plane_origin=start,
                                    plane_normal=eigen_vectors[:, use_eigen_vector_index],
                                    heights=np.arange(0, length, step=slicing_distance))
+print('empty slices', [i for i, s in enumerate(sections) if not s])
+
 print('sections', len(sections))
 sections = [s for s in sections if s]
 print('sections', len(sections))
+
 
 d3sections = [section.to_3D() for section in sections]
 
 face_indices = [path.metadata['face_index'] for path in sections]
 face_normals = [mesh.face_normals[segment_face_indices] for segment_face_indices in face_indices]
-print('mesh attrib', len(mesh.vertex_normals))
 
 # ############################ Trajectory generation ##############################
 
@@ -282,7 +293,7 @@ def update(frame_number, scatter, deposition_thickness):
         # time_scale = actual_norm_dist/standoff_dist
         # print('time_scale', time_scale, 'actual_norm_dist', actual_norm_dist, 'standoff_dist', standoff_dist)
         animation.event_source.interval = deposition_sim_time_resolution*1000*time_scale
-
+        gun_model.set_h(actual_norm_dist)
         affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
                                            surface_normal, intersection_location,
                                            continuous_tool_positions[j], continuous_tool_normals[j],

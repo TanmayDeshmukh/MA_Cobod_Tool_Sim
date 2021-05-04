@@ -5,12 +5,12 @@ import viz_utils
 
 
 class SprayGunModel:
-    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(10), min_axis_angle = np.radians(5), f_max=0.0012):
+    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(10), min_axis_angle = np.radians(5), f_max=0.001):
         self.beta1 = beta1
         self.beta2 = beta2
         self.maj_axis_angle = maj_axis_angle
         self.min_axis_angle = min_axis_angle
-        self.set_h(0.5)
+        self.set_h(0.8)
         self.f_max = f_max
         self.sim_resolution = 0.001
         self.viz_resolution = 0.01

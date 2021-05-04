@@ -22,7 +22,7 @@ def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientati
     if visualize:
         fig, ax = plt.subplots(figsize=(5,3))
         fig.subplots_adjust(bottom=0.164)
-        ax.set_xlabel('Seperation distance (m)')
+        ax.set_xlabel('Distance (m)')
         ax.set_ylabel('Deposition (m)')
         ax.ticklabel_format(axis='y', style='sci', scilimits=(-5,-3))
         actual_seperation_dist = float(overlap_dist)+gun_model.a
@@ -32,11 +32,11 @@ def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientati
         ax.plot(x_locations, final_profile, 'b')
         plt.axhline(y=np.max(final_profile), color='b', linestyle='dotted')
         plt.axhline(y=np.min(final_profile), color='b', linestyle='dotted')
-        t = plt.text(x_locations[-1]/2, (np.min(final_profile)+np.max(final_profile))/2,
+        """t = plt.text(x_locations[-1]/2, (np.min(final_profile)+np.max(final_profile))/2,
 
                  f'max(g(d))-min(g(d)) = {(np.max(final_profile)-np.min(final_profile))*1000.0: .2f} e-3',
                      ha = 'center', va='center', )
-        t.set_bbox(dict(facecolor='white', alpha=0.8, edgecolor='None'))
+        t.set_bbox(dict(facecolor='white', alpha=0.8, edgecolor='None'))"""
 
         plt.draw()
         plt.pause(0.001)

@@ -13,8 +13,8 @@ class TrajectoryGenerator:
         self.direction_flag = False
         self.extend_trajectory_outside = False
         self.vert_dist_threshold = 0.05  # m
-        self.adjacent_tool_pose_angle_threshold = np.radians(1.0)
-        self.adjacent_vertex_angle_threshold = np.radians(1.0)
+        self.adjacent_tool_pose_angle_threshold = np.radians(5.0)
+        self.adjacent_vertex_angle_threshold = np.radians(5.0)
 
     def generate_trajectory(self, d3sections):
 

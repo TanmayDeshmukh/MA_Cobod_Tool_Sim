@@ -5,7 +5,6 @@ import time
 from viz_utils import *
 
 
-
 def angle_between_vectors(a, b):
     return np.arccos(np.clip(np.dot(a, b), -1.0, 1.0))
 
@@ -22,7 +21,10 @@ def interpolate_tool_motion(all_tool_locations: [], all_tool_normals: [], sample
             movement_direction = movement_direction / movement_dist  # normalizing to get only direction vector
             continuous_tool_positions, continuous_tool_normals = [point_1], []
             # TODO: Need better interpolation (Maybe there's change in orientation without change in position)
-            n_samples = int(movement_dist / sample_dist) + 1
+            n_samples = 2
+            if movement_dist>=sample_dist:
+                n_samples = int(movement_dist / sample_dist) + 1 # to include last point
+
             while len(continuous_tool_positions) < n_samples:
                 next_position = continuous_tool_positions[-1] + movement_direction * sample_dist
                 continuous_tool_positions.append(next_position)
