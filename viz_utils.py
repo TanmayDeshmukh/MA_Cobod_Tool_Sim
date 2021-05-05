@@ -52,7 +52,7 @@ def visualize_deposition(template, X_grid, Y_grid):
     print('limits', limits)
     print('np.ptp(limits, axis=1)', np.ptp(limits, axis=1))
     pnp = np.ptp(limits, axis=1)
-    pnp[2] = pnp[2]*1000
+    pnp[2] = pnp[2]*500
     ax2.set_box_aspect(pnp)
 
     min_x, max_x = np.min(X_grid[0]), np.max(X_grid[0])
@@ -174,4 +174,10 @@ class Visualizer:
         plt.draw()
         plt.pause(0.001)
 
-visualizer = Visualizer()
+visualizer = None
+
+
+def open_figures():
+    global visualizer
+    if not visualizer:
+        visualizer = Visualizer()

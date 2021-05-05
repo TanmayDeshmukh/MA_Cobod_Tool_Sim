@@ -34,7 +34,7 @@ tool_pitch_speed_compensation   = True
 
 gun_model = SprayGunModel()
 
-starting_slice_offset           = gun_model.a/3
+starting_slice_offset           = gun_model.a/5
 
 
 slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
@@ -42,6 +42,7 @@ slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
 get_overlap_profile(gun_model, slicing_distance - gun_model.a/2, 0, 0)
 get_1d_overlap_profile(gun_model, slicing_distance - gun_model.a/2, 0, 0, True)
 
+viz_utils.open_figures()
 viz_utils.visualizer.mesh_view_adjust(mesh)
 
 faces_mask = surface_selection_tool.get_mask_triangle_indices(mesh)
@@ -53,7 +54,6 @@ mesh.export('surface_only.stl')
 
 # ############### Full model #################
 viz_utils.visualizer.draw_mesh(mesh)
-
 # ############################### PCA #################################
 
 covariance_matrix = np.cov(mesh.vertices.T)
@@ -80,7 +80,9 @@ slice_direction /= length
 start = ori_start + slice_direction*starting_slice_offset
 slice_direction = stop - start
 length = LA.norm(slice_direction)
-viz_utils.plot_path(viz_utils.visualizer.axs_slice, [ori_start ,start], color='b')
+
+if starting_slice_offset:
+    viz_utils.plot_path(viz_utils.visualizer.axs_slice, [ori_start ,start], color='yellow')
 
 # print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
 # print("Eigenvector: \n", eigen_vectors, "\n")

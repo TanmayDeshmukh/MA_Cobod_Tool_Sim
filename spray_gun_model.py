@@ -5,21 +5,21 @@ import viz_utils
 
 
 class SprayGunModel:
-    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(45), min_axis_angle = np.radians(10), f_max=0.001):
+    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(90), min_axis_angle = np.radians(45), f_max=0.001):
         self.beta1 = beta1
         self.beta2 = beta2
         self.maj_axis_angle = maj_axis_angle
         self.min_axis_angle = min_axis_angle
-        self.set_h(0.8)
+        self.set_h(0.5)
         self.f_max = f_max
         self.sim_resolution = 0.001
         self.viz_resolution = 0.01
         self.z_orientation = 0
 
     def set_h(self, h: float):
-        self.h = 0.5
-        self.a = np.tan(self.maj_axis_angle/2) / self.h  # 1.0
-        self.b = np.tan(self.min_axis_angle/2) / self.h  # 0.4
+        self.h = h
+        self.a = np.tan(self.maj_axis_angle/2) * self.h  # 1.0
+        self.b = np.tan(self.min_axis_angle/2) * self.h  # 0.4
 
 
     def visualize_spray_cone(self):

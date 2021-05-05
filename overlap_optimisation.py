@@ -140,12 +140,12 @@ if __name__ == '__main__':
     fig.canvas.set_window_title('Cost function')
     ax.plot(d_locs, np.array(costs))
 
-    """get_1d_overlap_profile(gun_model, 0, 0, 0, True)
+    get_1d_overlap_profile(gun_model, 0, 0, 0, True)
     get_1d_overlap_profile(gun_model, gun_model.a, 0, 0, True)
     get_1d_overlap_profile(gun_model, 0.6, 0, 0, True)
     get_1d_overlap_profile(gun_model, gun_model.a/2, 0, 0, True)
     get_1d_overlap_profile(gun_model, d, 0, 0, True)
     get_1d_overlap_profile(gun_model, d*1.5, 0, 0, True)
-    # get_overlap_profile(gun_model, d, 0, 0)"""
+    get_overlap_profile(gun_model, d, 0, 0)
     plt.show()
 
