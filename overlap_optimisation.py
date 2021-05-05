@@ -26,7 +26,7 @@ def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientati
         ax.set_ylabel('Deposition (m)')
         ax.ticklabel_format(axis='y', style='sci', scilimits=(-5,-3))
         actual_seperation_dist = float(overlap_dist)+gun_model.a
-        fig.canvas.set_window_title(f'Overlap optimization d={actual_seperation_dist: .2f}')
+        fig.canvas.set_window_title(f'Overlap optimization d={overlap_dist: .2f}')
         ax.plot(x_locations, g1_profile,'r', linestyle='-.')
         ax.plot(x_locations, g2_profile, 'g', linestyle='-.')
         ax.plot(x_locations, final_profile, 'b')
@@ -109,7 +109,7 @@ def get_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation_
     # plt.plot(combined)
     # plt.show()
     new_y_arr = (np.arange(0, full_canvas_1_padded.shape[0], 1) - full_canvas_1_padded.shape[0]/2)*min_res
-    new_x_arr = (np.arange(0, full_canvas_1_padded.shape[1], 1) -full_canvas_1_padded.shape[1]/2)*min_res
+    new_x_arr = (np.arange(0, full_canvas_1_padded.shape[1], 1) - full_canvas_1_padded.shape[1]/2)*min_res
     X_grid, Y_grid = np.meshgrid(new_x_arr, new_y_arr)
     # gun_model1.visualize_deposition(full_canvas_1_padded)
     print('full_canvas_1_padded', full_canvas_1_padded.shape)
@@ -125,10 +125,27 @@ if __name__ == '__main__':
     d = get_optimal_overlap_distance(gun_model, np.radians(0), 0)
     print('Optimal distance', d)
     print('a, b', gun_model.a, gun_model.b)
+
+    costs = []
+    d_locs = np.arange(0, gun_model.a, 0.01)
+    for d_i in d_locs:
+        final_profile, x_locations = get_1d_overlap_profile(gun_model, d_i, 0, 0, False)
+        costs.append(cost_function(final_profile))
+
+    fig, ax = plt.subplots(figsize=(5, 3))
+    fig.subplots_adjust(bottom=0.164)
+    ax.set_xlabel('d (m)')
+    ax.set_ylabel('cost')
+    ax.ticklabel_format(axis='y', style='sci', scilimits=(-5, -3))
+    fig.canvas.set_window_title('Cost function')
+    ax.plot(d_locs, np.array(costs))
+
+    """get_1d_overlap_profile(gun_model, 0, 0, 0, True)
     get_1d_overlap_profile(gun_model, gun_model.a, 0, 0, True)
+    get_1d_overlap_profile(gun_model, 0.6, 0, 0, True)
     get_1d_overlap_profile(gun_model, gun_model.a/2, 0, 0, True)
     get_1d_overlap_profile(gun_model, d, 0, 0, True)
     get_1d_overlap_profile(gun_model, d*1.5, 0, 0, True)
-    # get_overlap_profile(gun_model, d, 0, 0)
+    # get_overlap_profile(gun_model, d, 0, 0)"""
     plt.show()
 

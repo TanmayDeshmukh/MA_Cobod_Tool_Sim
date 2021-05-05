@@ -5,7 +5,7 @@ import viz_utils
 
 
 class SprayGunModel:
-    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(10), min_axis_angle = np.radians(5), f_max=0.001):
+    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(45), min_axis_angle = np.radians(10), f_max=0.001):
         self.beta1 = beta1
         self.beta2 = beta2
         self.maj_axis_angle = maj_axis_angle
@@ -18,8 +18,8 @@ class SprayGunModel:
 
     def set_h(self, h: float):
         self.h = 0.5
-        self.a = np.tan(self.maj_axis_angle) / self.h  # 1.0
-        self.b = np.tan(self.min_axis_angle) / self.h  # 0.4
+        self.a = np.tan(self.maj_axis_angle/2) / self.h  # 1.0
+        self.b = np.tan(self.min_axis_angle/2) / self.h  # 0.4
 
 
     def visualize_spray_cone(self):
@@ -93,7 +93,7 @@ class SprayGunModel:
 if __name__ == '__main__':
     gun_model = SprayGunModel()
     print('Gun Model', gun_model)
-    canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(-45))
+    canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(0))
     viz_utils.visualize_deposition(canvas, X_grid, Y_grid)
 
     prof, locations = gun_model.get_half_1d_profile(np.radians(0))
