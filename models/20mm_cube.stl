@@ -1,43 +1,25 @@
 solid model
-facet normal 1.0 0.0 0.0
-outer loop
-vertex 5.0 0.0 0.0
-vertex 0.0 20.0 10.0
-vertex 0.0 20.0 0.0
-endloop
-endfacet
 
 facet normal 1.0 0.0 0.0
 outer loop
-vertex 0.0 20.0 10.0
-vertex 5.0 0.0 0.0
-vertex 0.0 0.0 10.0
+vertex 20.0 0.0 0.0
+vertex 20.0 -20.0 20.0
+vertex 20.0 -20.0 0.0
 endloop
 endfacet
-
 facet normal 1.0 0.0 0.0
 outer loop
-vertex 2.0 20.0 20.0
-vertex 0.0 20.0 10.0
-vertex 0.0 0.0 10.0
+vertex 20.0 -20.0 20.0
+vertex 20.0 0.0 0.0
+vertex 20.0 0.0 20.0
 endloop
 endfacet
-
-facet normal 1.0 0.0 0.0
+facet normal -0.0 -0.0 1.0
 outer loop
-vertex 0.0 30.0 20.0
-vertex 0.0 25.0 20.0
-vertex 0.0 25.0 0.0
+vertex 0.0 0.0 20.0
+vertex 20.0 -20.0 20.0
+vertex 20.0 0.0 20.0
 endloop
 endfacet
-
-facet normal 1.0 0.0 0.0
-outer loop
-vertex 5.0 30.0 00.0
-vertex 0.0 30.0 20.0
-vertex 0.0 25.0 0.0
-endloop
-endfacet
-
 
 endsolid model

@@ -48,9 +48,6 @@ def visualize_deposition(template, X_grid, Y_grid):
     ax1.imshow(template, extent=[np.min(X_grid[0]), np.max(X_grid[0]), np.min(Y_grid[:, 0]), np.max(Y_grid[:, 0])])
 
     limits = np.array([getattr(ax2, f'get_{axis}lim')() for axis in 'xyz'])
-
-    print('limits', limits)
-    print('np.ptp(limits, axis=1)', np.ptp(limits, axis=1))
     pnp = np.ptp(limits, axis=1)
     pnp[2] = pnp[2]*500
     ax2.set_box_aspect(pnp)
@@ -102,33 +99,39 @@ class Arrow3D(FancyArrowPatch):
 
 class Visualizer:
     def __init__(self):
+        self.fig_mesh = plt.figure()
+        self.axs_mesh = self.fig_mesh.add_subplot(111, projection='3d')
+        self.fig_mesh.canvas.set_window_title('Surface mesh')
+        self.fig_mesh.tight_layout()
+        self.fig_mesh.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=0)
+
         self.fig_slice = plt.figure()
         self.axs_slice = self.fig_slice.add_subplot(111, projection='3d')
         self.fig_slice.canvas.set_window_title('Slicing')
         self.fig_slice.tight_layout()
-        self.fig_slice.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
+        self.fig_slice.subplots_adjust(left=-0.2, right=1.1, top=1.1, bottom=0)
 
         self.fig_unord = plt.figure()
         self.axs_unord = self.fig_unord.add_subplot(111, projection='3d')
         self.fig_unord.canvas.set_window_title('Unordered path')
         self.fig_unord.tight_layout()
-        self.fig_unord.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
+        self.fig_unord.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=0)
 
         self.fig_temp = plt.figure()
         self.axs_temp = self.fig_temp.add_subplot(111, projection='3d')
         self.fig_temp.canvas.set_window_title('Ordered path')
         self.fig_temp.tight_layout()
-        self.fig_temp.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
+        self.fig_temp.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=0)
 
         self.fig_init = plt.figure()
         self.axs_init = self.fig_init.add_subplot(111, projection='3d')
         self.fig_init.canvas.set_window_title('Initial path')
         self.fig_init.tight_layout()
-        self.fig_init.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=-0.05)
+        self.fig_init.subplots_adjust(left=-0.05, right=1.05, top=1.1, bottom=0)
 
         self.final_path_fig, self.final_path_ax = plt.subplots(subplot_kw={'projection': '3d'})
         self.final_path_fig.tight_layout()
-        self.final_path_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
+        self.final_path_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=0)
         self.final_path_fig.canvas.set_window_title('Constrained Path')
 
         self.fig_distrib_hist = plt.figure()
@@ -136,7 +139,7 @@ class Visualizer:
         self.ax_distrib_hist = self.fig_distrib_hist.add_subplot(111)
         self.ax_distrib_hist.set_xlabel('deposition thickness (mm)')
 
-        self.all_axs =  [self.axs_init, self.final_path_ax, self.axs_temp, self.axs_unord, self.axs_slice]
+        self.all_axs =  [self.axs_init, self.final_path_ax, self.axs_temp, self.axs_unord, self.axs_slice, self.axs_mesh]
 
     def mesh_view_adjust(self, mesh):
         for ax in self.all_axs:
@@ -150,6 +153,7 @@ class Visualizer:
             ax.set_ylim3d(mesh.bounds[0][1] - 0.5, mesh.bounds[1][1])
             ax.set_zlim3d(mesh.bounds[0][2], mesh.bounds[1][2] + 0.5)
 
+            ax.set_xlabel('X (m)'); ax.set_ylabel('Y (m)'); ax.set_zlabel('Z (m)')
             limits = np.array([getattr(ax, f'get_{axis}lim')() for axis in 'xyz'])
             ax.set_box_aspect(np.ptp(limits, axis=1))
         # plot the ground plane
@@ -162,14 +166,19 @@ class Visualizer:
 
     def draw_mesh(self, mesh):
         for ax, col in zip(self.all_axs,
-                      ['grey', 'cornflowerblue', 'cornflowerblue', 'cornflowerblue', 'cornflowerblue']):
+                      ['grey']+[ 'cornflowerblue']*(len(self.all_axs)-1)):
 
             mplot = mplot3d.art3d.Poly3DCollection(mesh.triangles)
             # mplot.set_alpha(0.8)
             mplot.set_facecolor(col)
-            # mplot.set_edgecolor('black')
+
             mplot.set_sort_zpos(-1)
-            ax.add_collection3d(mplot)
+            if ax != self.axs_mesh:
+                ax.add_collection3d(mplot)
+            if ax==self.axs_mesh:
+                mplot.set_edgecolor('grey')
+                vertices = mesh.vertices
+                ax.scatter(vertices[:, 0], vertices[:, 1], vertices[:, 2], c='r', s=10)
 
         plt.draw()
         plt.pause(0.001)

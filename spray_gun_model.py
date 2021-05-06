@@ -71,7 +71,6 @@ class SprayGunModel:
         deposition_template = np.zeros((len(plot_arr_y), len(plot_arr_x)))
 
         orientation = -orientation
-        print('start_populating', deposition_template.shape, X_grid.shape, Y_grid.shape)
         for x_i in range(len(plot_arr_x)):
             for y_i in range(len(plot_arr_y)):
                 x_, y_ = plot_arr_x[x_i], plot_arr_y[y_i]
@@ -83,7 +82,6 @@ class SprayGunModel:
                     # if abs(rotated_y)<0.001:
                     #    print(x_, deposition_template[y_i][x_i])
         np.nan_to_num(deposition_template, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
-        print('end_populating')
         return deposition_template, X_grid, Y_grid
 
     def __str__(self):

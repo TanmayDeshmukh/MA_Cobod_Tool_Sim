@@ -19,14 +19,14 @@ import seaborn as sns
 import warnings
 
 # warnings.filterwarnings('error')
-
-mesh = trimesh.load_mesh('models/wall_type_1_angled.STL')
+stl_file = 'wall_type_1_angled.STL' # wall_type_1_angled.STL wall_type_2_vertical
+mesh = trimesh.load_mesh('models/'+stl_file)
 
 use_eigen_vector_index          = 0
 constant_vel                    = 0.5  # m/s
 deposition_sim_time_resolution  = 0.05  # s
 tool_motion_time_resolution     = 1.0  # s
-standoff_dist                   = 0.8  # m
+standoff_dist                   = 0.5  # m
 
 number_of_samples               = 3000
 surface_sample_viz_size         = 20
@@ -34,7 +34,7 @@ tool_pitch_speed_compensation   = True
 
 gun_model = SprayGunModel()
 
-starting_slice_offset           = gun_model.a/5
+starting_slice_offset           =  gun_model.a/3
 
 
 slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
@@ -50,10 +50,11 @@ mesh.update_faces(faces_mask)
 # Remove all vertices in the current mesh which are not referenced by a face.
 mesh.remove_unreferenced_vertices()
 mesh.remove_infinite_values()
-mesh.export('surface_only.stl')
+mesh.export(stl_file+'_filtered_surface.stl', file_type='stl_ascii')
 
 # ############### Full model #################
 viz_utils.visualizer.draw_mesh(mesh)
+
 # ############################### PCA #################################
 
 covariance_matrix = np.cov(mesh.vertices.T)
@@ -80,21 +81,29 @@ slice_direction /= length
 start = ori_start + slice_direction*starting_slice_offset
 slice_direction = stop - start
 length = LA.norm(slice_direction)
+slice_direction /= length
 
 if starting_slice_offset:
-    viz_utils.plot_path(viz_utils.visualizer.axs_slice, [ori_start ,start], color='yellow')
+    viz_utils.plot_path(viz_utils.visualizer.axs_mesh, [ori_start ,start], color='yellow')
 
 # print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
 # print("Eigenvector: \n", eigen_vectors, "\n")
 
-viz_utils.plot_normals(viz_utils.visualizer.axs_slice, [start], [eigen_vectors[:, use_eigen_vector_index]], norm_length=length, color='b')
+print('Selected EV', eigen_vectors[:, use_eigen_vector_index])
+print('slice_direction', slice_direction)
+viz_utils.plot_normals(viz_utils.visualizer.axs_mesh, [start], [eigen_vectors[:, use_eigen_vector_index]], norm_length=length, color='r', lw=1)
+viz_utils.plot_normals(viz_utils.visualizer.axs_slice, [start], [slice_direction], norm_length=length, color='b', lw=1)
 # print('eigen_vectors[:,0]', eigen_vectors[:, 0])
 
 # ################################# Slicing #####################################
 
 sections = mesh.section_multiplane(plane_origin=start,
-                                   plane_normal=eigen_vectors[:, use_eigen_vector_index],
+                                   plane_normal=slice_direction,
                                    heights=np.arange(0, length, step=slicing_distance))
+
+"""sections, to_3D, face_indexes = trimesh.intersections.mesh_multiplane(mesh, plane_origin=start,
+                                   plane_normal=slice_direction,
+                                   heights=np.arange(0, length, step=slicing_distance))"""
 print('empty slices', [i for i, s in enumerate(sections) if not s])
 
 print('sections', len(sections))
@@ -154,7 +163,7 @@ o3d.io.write_point_cloud("wall_surface.pcd", pcd)
 deposition_thickness = np.array(deposition_thickness)
 scatter = final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=surface_sample_viz_size, picker = 2)#, c=deposition_thickness, cmap='coolwarm')
 
-
+"""
 # ############### Writing to a JSON file ##################
 file_data = []
 ray_mesh_intersector = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
@@ -317,8 +326,8 @@ def update(frame_number, scatter, deposition_thickness):
 
 final_rendering_fig.canvas.set_window_title('Paint sim')
 
-animation = FuncAnimation(final_rendering_fig, update, interval= deposition_sim_time_resolution*1000, blit=False,
-                          save_count=350, fargs=(scatter, deposition_thickness)) # , cache_frame_data=False, repeat = False)
+#animation = FuncAnimation(final_rendering_fig, update, interval= deposition_sim_time_resolution*1000, blit=False,
+#                          save_count=350, fargs=(scatter, deposition_thickness)) # , cache_frame_data=False, repeat = False)
 
 print('matplotlib.animation.writers', matplotlib.animation.writers.list())
 Writer = matplotlib.animation.writers['html']
@@ -342,6 +351,6 @@ def onpick(event):
 
 # final_rendering_fig.canvas.mpl_connect('pick_event', onpick)
 
-
+"""
 plt.show()
 print('after plot')

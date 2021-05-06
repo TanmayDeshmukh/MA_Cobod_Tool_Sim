@@ -4,6 +4,8 @@ from scipy.optimize import least_squares
 
 def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation_2, visualize = False):
 
+    if overlap_dist<0:
+        print('d is < 0: ', overlap_dist, 'Optimisation will fail')
     # Assuming resolutions are same
     g1_profile, g1_x_locations = gun_model.get_half_1d_profile(z_orientation_1)
     g2_profile, g2_x_locations = gun_model.get_half_1d_profile(z_orientation_2)
@@ -12,6 +14,7 @@ def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientati
 
     # Padding
     padding = int(overlap_dist/gun_model.sim_resolution)+1
+
     g1_profile = np.pad(g1_profile, (0, padding), 'constant', constant_values=(0, 0))
     g2_profile = np.pad(g2_profile, (0, padding), 'constant', constant_values=(0, 0))
 
@@ -96,11 +99,9 @@ def get_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation_
         canvas_1_padded = np.pad(canvas_1, (vertical_diff, vertical_diff), 'constant', constant_values=(0, 0))
 
     # Horizontal padding
-    print('overlap_dist', overlap_dist)
     no_bins_1 = int((overlap_dist+gun_model.a)/min_res)
     no_bins_2 = int((overlap_dist+gun_model.a)/min_res)
 
-    print('no_bins_1', no_bins_1, no_bins_2)
 
     # shape = [max(a.shape[axis] for a in (g1_profile, g1_profile)) for axis in range(len(g1_profile.shape))]
     full_canvas_1_padded = np.pad(canvas_1, pad_width=((0,0), (0, no_bins_1)), mode='constant', constant_values=0)
@@ -112,10 +113,6 @@ def get_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation_
     new_x_arr = (np.arange(0, full_canvas_1_padded.shape[1], 1) - full_canvas_1_padded.shape[1]/2)*min_res
     X_grid, Y_grid = np.meshgrid(new_x_arr, new_y_arr)
     # gun_model1.visualize_deposition(full_canvas_1_padded)
-    print('full_canvas_1_padded', full_canvas_1_padded.shape)
-    print('full_canvas_2_padded', full_canvas_2_padded.shape)
-    print('canvas_1.shape', canvas_1.shape)
-    print('X_grid', X_grid.shape)
     viz_utils.visualize_deposition(combined, X_grid, Y_grid)
 
 
