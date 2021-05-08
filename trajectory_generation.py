@@ -5,11 +5,11 @@ import viz_utils
 
 class TrajectoryGenerator:
 
-    def __init__(self, mesh, gun_model):
+    def __init__(self, mesh, gun_model, standoff_dist):
 
         self.mesh = mesh
         self.gun_model = gun_model
-        self.standoff_dist = gun_model.h
+        self.standoff_dist = standoff_dist
         self.direction_flag = False
         self.extend_trajectory_outside = False
         self.vert_dist_threshold =  0.005  # m
@@ -77,8 +77,8 @@ class TrajectoryGenerator:
 
                 subpath_tool_positions = np.array(subpath_tool_positions)
                 viz_utils.visualizer.axs_unord.scatter(subpath_tool_positions[:, 0],subpath_tool_positions[:, 1],subpath_tool_positions[:, 2], c='g', s=20)
-                viz_utils.plot_normals(viz_utils.visualizer.axs_temp, subpath_tool_positions, subpath_tool_normals, lw=1, hw=0.2)
-                viz_utils.plot_path(viz_utils.visualizer.axs_temp, vertices=subpath_tool_positions, color='g', lw=2, hw=0.4)
+                #viz_utils.plot_normals(viz_utils.visualizer.axs_temp, subpath_tool_positions, subpath_tool_normals, lw=1, hw=0.2)
+                viz_utils.plot_path(viz_utils.visualizer.axs_temp, vertices=subpath_tool_positions, color='g', lw=1, hw=0.01)
 
             """viz_c = 0
             for subpath_tool_positions in all_verts_this_section:
@@ -209,9 +209,9 @@ class TrajectoryGenerator:
             ele_popped = 0
             print('len samp', len(samples), np.array(samples))
             for i, point in enumerate(samples[1:-1]):
-                point = np.array(samples[i + 1])
-                prev_point = np.array(samples[i])
-                next_point = np.array(samples[i + 2])
+                point = np.array(samples[i + 1-ele_popped])
+                prev_point = np.array(samples[i-ele_popped])
+                next_point = np.array(samples[i + 2-ele_popped])
                 a = prev_point- point
                 a /= LA.norm(a)
                 b = next_point - point

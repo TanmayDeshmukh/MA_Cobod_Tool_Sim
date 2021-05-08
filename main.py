@@ -25,8 +25,8 @@ mesh = trimesh.load_mesh('models/'+stl_file)
 use_eigen_vector_index          = 0
 constant_vel                    = 0.5  # m/s
 deposition_sim_time_resolution  = 0.05  # s
-tool_motion_time_resolution     = 1.0  # s
-standoff_dist                   = 0.5  # m
+tool_motion_time_resolution     = 0.8  # s
+standoff_dist                   = 0.2  # m
 
 number_of_samples               = 3000
 surface_sample_viz_size         = 20
@@ -118,7 +118,7 @@ face_normals = [mesh.face_normals[segment_face_indices] for segment_face_indices
 
 # ############################ Trajectory generation ##############################
 
-trajectory_generator = TrajectoryGenerator(mesh=mesh, gun_model=gun_model)
+trajectory_generator = TrajectoryGenerator(mesh=mesh, gun_model=gun_model, standoff_dist=standoff_dist)
 all_tool_locations, all_tool_normals, section_end_vert_pairs = trajectory_generator.generate_trajectory(d3sections)
 
 # all_tool_locations = [ [v0 v1 v2 v3 .. vn ] , [v0 v1 v2 v3 .. vm] .. ]
@@ -163,7 +163,7 @@ o3d.io.write_point_cloud("wall_surface.pcd", pcd)
 deposition_thickness = np.array(deposition_thickness)
 scatter = final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=surface_sample_viz_size, picker = 2)#, c=deposition_thickness, cmap='coolwarm')
 
-"""
+
 # ############### Writing to a JSON file ##################
 file_data = []
 ray_mesh_intersector = trimesh.ray.ray_triangle.RayMeshIntersector(mesh)
@@ -176,7 +176,7 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
     plot_path(viz_utils.visualizer.final_path_ax, continuous_tool_positions)
     viz_utils.plot_normals(viz_utils.visualizer.final_path_ax, continuous_tool_positions, continuous_tool_normals)
 
-    for i, (current_tool_position, current_tool_normal) in enumerate(
+    for pos_index, (current_tool_position, current_tool_normal) in enumerate(
             zip(continuous_tool_positions, continuous_tool_normals)):
 
         intersection_location, surface_normal = get_intersection_point(current_tool_position,  current_tool_normal,
@@ -185,18 +185,47 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
         current_tool_position, current_tool_normal = limit_tool_position(current_tool_position, intersection_location,
                                                                          current_tool_normal)
 
+        if pos_index < len(continuous_tool_positions) - 1:
+            current_tool_travel_vec = continuous_tool_positions[pos_index + 1] - current_tool_position
+            current_tool_travel_vec /= LA.norm(current_tool_travel_vec)
+
+            travel_component_on_normal = np.dot(current_tool_normal, current_tool_travel_vec)
+            current_tool_minor_axis_vec = current_tool_travel_vec - travel_component_on_normal
+            current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
+
+            current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
+
         tool_pos_to_point = current_tool_position-intersection_location
         actual_norm_dist = LA.norm(tool_pos_to_point)
         tool_pos_to_point /= actual_norm_dist
+
+        # Validate orthogonality of the 3 vectors
+        print('(np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec)\n', np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec)
+        viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_normal],
+                               color='r')
+        viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_minor_axis_vec], color='g', lw=1)
+        viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_major_axis_vec],lw=1,
+                               color='b')
+
+        # A = np.column_stack((np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec))
+        # I = A.T*A
+
+        mag = LA.norm(np.dot(current_tool_normal, current_tool_minor_axis_vec))+LA.norm(np.dot(current_tool_minor_axis_vec, current_tool_major_axis_vec))
+
+        # if mag != 0.0:
+        print('\n\nMAG', mag)
+        print('current_tool_travel_vec', current_tool_travel_vec, '\ntravel_component_on_normal',
+              travel_component_on_normal)
 
         time_scale = 1.0
         if tool_pitch_speed_compensation:
             time_scale = 1.0 / surface_scaling( gun_model.h, actual_norm_dist, surface_normal, tool_pos_to_point,
                                                current_tool_normal)
         dict = {"time_stamp": time_stamp*actual_norm_dist/standoff_dist,
-                "z_rotation": 0.0,
-                "spray_on": False if i==len(continuous_tool_positions)-1 else True,
                 "tool_position": list(current_tool_position),
+                "minor_axis_vec": current_tool_minor_axis_vec.tolist(),
+                "major_axis_vec": current_tool_major_axis_vec.tolist(),
+                "spray_on": False if i==len(continuous_tool_positions)-1 else True,
                 "tool_normal": list(current_tool_normal),
                 }
         file_data.append(dict)
@@ -252,9 +281,12 @@ def update(frame_number, scatter, deposition_thickness):
 
                 if pos_index < len(continuous_tool_positions)-1:
                     # if angle_between_vectors(current_tool_normal, continuous_tool_normals[pos_index+1]) > 0:
-                    current_tool_minor_axis_vec = (continuous_tool_positions[pos_index + 1] - current_tool_position)+continuous_tool_normals[pos_index+1] - current_tool_normal
-                    current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
+                    current_tool_travel_vec = (continuous_tool_positions[pos_index + 1] - current_tool_position)+continuous_tool_normals[pos_index+1] - current_tool_normal
+                    current_tool_travel_vec /= LA.norm(current_tool_travel_vec)
 
+                    travel_component_on_normal = np.dot(current_tool_normal, current_tool_travel_vec)
+
+                    current_tool_minor_axis_vec = current_tool_travel_vec-travel_component_on_normal
                     current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
 
                     current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
@@ -326,9 +358,9 @@ def update(frame_number, scatter, deposition_thickness):
 
 final_rendering_fig.canvas.set_window_title('Paint sim')
 
-#animation = FuncAnimation(final_rendering_fig, update, interval= deposition_sim_time_resolution*1000, blit=False,
-#                          save_count=350, fargs=(scatter, deposition_thickness)) # , cache_frame_data=False, repeat = False)
-
+animation = FuncAnimation(final_rendering_fig, update, interval= deposition_sim_time_resolution*1000, blit=False,
+                          save_count=350, fargs=(scatter, deposition_thickness)) # , cache_frame_data=False, repeat = False)
+"""
 print('matplotlib.animation.writers', matplotlib.animation.writers.list())
 Writer = matplotlib.animation.writers['html']
 writer = Writer(fps=15, metadata={'artist':'COBOD'}, bitrate=1800)
