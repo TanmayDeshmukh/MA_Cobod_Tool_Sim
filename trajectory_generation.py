@@ -10,7 +10,7 @@ class TrajectoryGenerator:
         self.mesh = mesh
         self.gun_model = gun_model
         self.standoff_dist = standoff_dist
-        self.direction_flag = False
+        self.direction_flag = False  # inverts starting direction of the raster pattern
         self.extend_trajectory_outside = False
         self.vert_dist_threshold =  0.005  # m
         self.adjacent_tool_pose_angle_threshold = np.radians(10.0)
@@ -20,7 +20,7 @@ class TrajectoryGenerator:
 
         all_tool_locations = []
         all_tool_normals = []
-        section_end_vert_pairs = []
+        section_end_vert_pairs = []  # pairs of last tool position in one sub-path and first tool pos in next sub-path
 
         for section_iter, section_path_group in enumerate(d3sections):
             face_indices = section_path_group.metadata['face_index']

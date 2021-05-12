@@ -229,7 +229,7 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
                 "tool_position": list(current_tool_position),
                 "minor_axis_vec": current_tool_minor_axis_vec.tolist(),
                 "major_axis_vec": current_tool_major_axis_vec.tolist(),
-                "spray_on": False if i==len(continuous_tool_positions)-1 else True,
+                "spray_on": False if pos_index==len(continuous_tool_positions)-1 else True,
                 "tool_normal": list(current_tool_normal),
                 }
         file_data.append(dict)
