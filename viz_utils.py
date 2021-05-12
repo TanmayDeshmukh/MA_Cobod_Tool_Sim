@@ -139,6 +139,10 @@ class Visualizer:
         self.ax_distrib_hist = self.fig_distrib_hist.add_subplot(111)
         self.ax_distrib_hist.set_xlabel('deposition thickness (mm)')
 
+        self.final_rendering_fig, self.final_rendering_ax = plt.subplots(subplot_kw={'projection': '3d'})
+        self.final_rendering_fig.tight_layout()
+        self.final_rendering_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
+
         self.all_axs =  [self.axs_init, self.final_path_ax, self.axs_temp, self.axs_unord, self.axs_slice, self.axs_mesh]
 
     def mesh_view_adjust(self, mesh):

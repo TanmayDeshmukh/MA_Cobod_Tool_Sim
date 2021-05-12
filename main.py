@@ -23,14 +23,17 @@ stl_file = 'wall_type_1_angled.STL' # wall_type_1_angled.STL wall_type_2_vertica
 mesh = trimesh.load_mesh('models/'+stl_file)
 
 use_eigen_vector_index          = 0
-constant_vel                    = 0.5  # m/s
-deposition_sim_time_resolution  = 0.05  # s
-tool_motion_time_resolution     = 0.8  # s
-standoff_dist                   = 0.2  # m
+constant_vel                    = 0.6  # m/s
+deposition_sim_time_resolution  = 0.1  # s
+tool_motion_time_resolution     = 0.5 # s
+standoff_dist                   = 0.5  # m
 
-number_of_samples               = 3000
-surface_sample_viz_size         = 20
-tool_pitch_speed_compensation   = True
+number_of_samples               = 5000
+surface_sample_viz_size         = 7
+tool_pitch_speed_compensation   = False
+
+tool_limits = [0, 2], [0.4, 1.6], [0.7, 1.0] # X, Y, Z
+# tool_limits = [-5.0, 5], [-5.0, 5], [-5.0, 5.0]
 
 gun_model = SprayGunModel()
 
@@ -146,9 +149,7 @@ plt.pause(0.001)
 
 print('all_tool_locations\n', all_tool_locations, '\nall_tool_normals\n', all_tool_normals)
 
-final_rendering_fig, final_rendering_ax = plt.subplots(subplot_kw={'projection': '3d'})
-final_rendering_fig.tight_layout()
-final_rendering_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
+
 
 # Sample points on surface for simulation
 samples, sample_face_indexes = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
@@ -161,7 +162,7 @@ o3d.io.write_point_cloud("wall_surface.pcd", pcd)
 
 # ################################# Calculate paint passes #################################
 deposition_thickness = np.array(deposition_thickness)
-scatter = final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=surface_sample_viz_size, picker = 2)#, c=deposition_thickness, cmap='coolwarm')
+scatter = viz_utils.visualizer.final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=surface_sample_viz_size, picker = 2)#, c=deposition_thickness, cmap='coolwarm')
 
 
 # ############### Writing to a JSON file ##################
@@ -183,14 +184,18 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
                                                                        mesh, ray_mesh_intersector, sample_tree)
 
         current_tool_position, current_tool_normal = limit_tool_position(current_tool_position, intersection_location,
-                                                                         current_tool_normal)
+                                                                         current_tool_normal, tool_limits)
 
         if pos_index < len(continuous_tool_positions) - 1:
-            current_tool_travel_vec = continuous_tool_positions[pos_index + 1] - current_tool_position
+            next_intersection_location, next_surface_normal = get_intersection_point(
+                continuous_tool_positions[pos_index + 1], continuous_tool_normals[pos_index + 1],
+                mesh, ray_mesh_intersector, sample_tree)
+
+            current_tool_travel_vec = next_intersection_location - intersection_location
             current_tool_travel_vec /= LA.norm(current_tool_travel_vec)
 
             travel_component_on_normal = np.dot(current_tool_normal, current_tool_travel_vec)
-            current_tool_minor_axis_vec = current_tool_travel_vec - travel_component_on_normal
+            current_tool_minor_axis_vec = current_tool_travel_vec - travel_component_on_normal*current_tool_normal
             current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
 
             current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
@@ -202,20 +207,15 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
         # Validate orthogonality of the 3 vectors
         print('(np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec)\n', np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec)
         viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_normal],
-                               color='r')
-        viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_minor_axis_vec], color='g', lw=1)
-        viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_major_axis_vec],lw=1,
-                               color='b')
+                               color='r', lw=1, hw=0.1)
+        #viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_minor_axis_vec], color='g', lw=1, hw=0.1)
+        # viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_major_axis_vec],lw=1,
+        #                       color='b')
 
         # A = np.column_stack((np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec))
         # I = A.T*A
 
         mag = LA.norm(np.dot(current_tool_normal, current_tool_minor_axis_vec))+LA.norm(np.dot(current_tool_minor_axis_vec, current_tool_major_axis_vec))
-
-        # if mag != 0.0:
-        print('\n\nMAG', mag)
-        print('current_tool_travel_vec', current_tool_travel_vec, '\ntravel_component_on_normal',
-              travel_component_on_normal)
 
         time_scale = 1.0
         if tool_pitch_speed_compensation:
@@ -254,7 +254,7 @@ intersection_index_tri = -1
 def update(frame_number, scatter, deposition_thickness):
     global paint_pass, j,sorted_intersection_locations, continuous_tool_positions, continuous_tool_normals, \
         intersection_index_tri, tool_major_axis_vecs, tool_minor_axis_vecs, sample_tree, mesh, \
-        deposition_sim_time_resolution, gun_model
+        deposition_sim_time_resolution, gun_model, tool_limits
 
     if paint_pass >= len(total_tool_positions):
         print('\ndeposition_thickness\nmin:', deposition_thickness.min() * 1000, 'mm\nmax',
@@ -269,8 +269,8 @@ def update(frame_number, scatter, deposition_thickness):
     else:
         if j==0:
             continuous_tool_positions, continuous_tool_normals = all_tool_positions[paint_pass], tool_normals[paint_pass]
-            # plot_path(final_rendering_ax, continuous_tool_positions)
-            # viz_utils.plot_normals(final_rendering_ax, continuous_tool_positions, continuous_tool_normals)
+            # plot_path(viz_utils.visualizer.final_rendering_ax, continuous_tool_positions)
+            # viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, continuous_tool_positions, continuous_tool_normals)
             tool_major_axis_vecs, tool_minor_axis_vecs = [], []
             # print('Estim axis vecs')
             current_tool_minor_axis_vec=[]
@@ -278,10 +278,16 @@ def update(frame_number, scatter, deposition_thickness):
             for pos_index, (current_tool_position, current_tool_normal) in enumerate(
                     zip(continuous_tool_positions, continuous_tool_normals)):
                 # set minor axis direction to direction of movement
-
+                intersection_location, surface_normal = get_intersection_point(
+                    continuous_tool_positions[pos_index], continuous_tool_normals[pos_index],
+                    mesh, ray_mesh_intersector, sample_tree)
                 if pos_index < len(continuous_tool_positions)-1:
                     # if angle_between_vectors(current_tool_normal, continuous_tool_normals[pos_index+1]) > 0:
-                    current_tool_travel_vec = (continuous_tool_positions[pos_index + 1] - current_tool_position)+continuous_tool_normals[pos_index+1] - current_tool_normal
+                    next_intersection_location, next_surface_normal = get_intersection_point(
+                        continuous_tool_positions[pos_index + 1], continuous_tool_normals[pos_index + 1],
+                        mesh, ray_mesh_intersector, sample_tree)
+
+                    current_tool_travel_vec = next_intersection_location - intersection_location
                     current_tool_travel_vec /= LA.norm(current_tool_travel_vec)
 
                     travel_component_on_normal = np.dot(current_tool_normal, current_tool_travel_vec)
@@ -293,13 +299,12 @@ def update(frame_number, scatter, deposition_thickness):
                 tool_major_axis_vecs.append(current_tool_major_axis_vec)
                 tool_minor_axis_vecs.append(current_tool_minor_axis_vec)
 
-            #viz_utils.plot_normals(final_rendering_ax, continuous_tool_positions, tool_minor_axis_vecs, norm_length=0.3, color='g')
+            #viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, continuous_tool_positions, tool_minor_axis_vecs, norm_length=0.3, color='g')
 
-        intersection_location, surface_normal = get_intersection_point(continuous_tool_positions[j], continuous_tool_normals[j],
-                                                                       mesh, ray_mesh_intersector, sample_tree)
-
+        intersection_location, surface_normal = get_intersection_point(
+            continuous_tool_positions[j], continuous_tool_normals[j],mesh, ray_mesh_intersector, sample_tree)
         continuous_tool_positions[j], continuous_tool_normals[j] = limit_tool_position(continuous_tool_positions[j], intersection_location,
-                                                                         continuous_tool_normals[j])
+                                                                         continuous_tool_normals[j], tool_limits)
 
         tool_pos_to_point = continuous_tool_positions[j] - intersection_location
         actual_norm_dist = LA.norm(tool_pos_to_point)
@@ -311,7 +316,7 @@ def update(frame_number, scatter, deposition_thickness):
             time_scale = 1.0/ surface_scaling(gun_model.h, actual_norm_dist, surface_normal, tool_pos_to_point, continuous_tool_normals[j])
 
         if j%5==0:
-            # final_rendering_ax.scatter(intersection_location[0], intersection_location[1], intersection_location[2],
+            # viz_utils.visualizer.final_rendering_ax.scatter(intersection_location[0], intersection_location[1], intersection_location[2],
             #                            s=surface_sample_viz_size,
             #                            picker=2, c='r')  # , c=deposition_thickness, cmap='coolwarm')
 
@@ -354,13 +359,78 @@ def update(frame_number, scatter, deposition_thickness):
 # scatter.set_clim(vmin=min(deposition_thickness), vmax=max(deposition_thickness))
 # scatter.set_color()
 
+def WireframeSphere(centre=[0.,0.,0.], radius=1.,
+                    n_meridians=20, n_circles_latitude=None):
+    """
+    Create the arrays of values to plot the wireframe of a sphere.
+
+    Parameters
+    ----------
+    centre: array like
+        A point, defined as an iterable of three numerical values.
+    radius: number
+        The radius of the sphere.
+    n_meridians: int
+        The number of meridians to display (circles that pass on both poles).
+    n_circles_latitude: int
+        The number of horizontal circles (akin to the Equator) to display.
+        Notice this includes one for each pole, and defaults to 4 or half
+        of the *n_meridians* if the latter is larger.
+
+    Returns
+    -------
+    sphere_x, sphere_y, sphere_z: arrays
+        The arrays with the coordinates of the points to make the wireframe.
+        Their shape is (n_meridians, n_circles_latitude).
+
+    Examples
+    --------
+    >>> fig = plt.figure()
+    >>> ax = fig.gca(projection='3d')
+    >>> ax.set_aspect("equal")
+    >>> sphere = ax.plot_wireframe(*WireframeSphere(), color="r", alpha=0.5)
+    >>> fig.show()
+
+    >>> fig = plt.figure()
+    >>> ax = fig.gca(projection='3d')
+    >>> ax.set_aspect("equal")
+    >>> frame_xs, frame_ys, frame_zs = WireframeSphere()
+    >>> sphere = ax.plot_wireframe(frame_xs, frame_ys, frame_zs, color="r", alpha=0.5)
+    >>> fig.show()
+    """
+    if n_circles_latitude is None:
+        n_circles_latitude = max(n_meridians/2, 4)
+    u, v = np.mgrid[0:2*np.pi:n_meridians*1j, 0:np.pi:n_circles_latitude*1j]
+    sphere_x = centre[0] + radius * np.cos(u) * np.sin(v)
+    sphere_y = centre[1] + radius * np.sin(u) * np.sin(v)
+    sphere_z = centre[2] + radius * np.cos(v)
+    return sphere_x, sphere_y, sphere_z
 
 
-final_rendering_fig.canvas.set_window_title('Paint sim')
 
-animation = FuncAnimation(final_rendering_fig, update, interval= deposition_sim_time_resolution*1000, blit=False,
+# final_rendering_fig.canvas.set_window_title('Paint sim')
+
+animation = FuncAnimation(viz_utils.visualizer.final_rendering_fig, update, interval= deposition_sim_time_resolution*1000, blit=False,
                           save_count=350, fargs=(scatter, deposition_thickness)) # , cache_frame_data=False, repeat = False)
+
+
+# Writer = matplotlib.animation.writers['html']
+# writer = Writer(fps=15, metadata={'artist':'COBOD'}, bitrate=1800)
+# animation.save('paint_simulation.html', writer=writer)
+#               #  progress_callback = lambda i, n: print(f'Saving frame {i} of {n}'))
+
 """
+
+viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [all_tool_locations[0][0]], [all_tool_normals[0][0]])
+intersection_location, surface_normal = get_intersection_point(all_tool_locations[0][0], all_tool_normals[0][0],
+                                                                       mesh, ray_mesh_intersector, sample_tree)
+viz_utils.visualizer.final_rendering_ax.scatter(*all_tool_locations[0][0], s=40, c='g')
+viz_utils.visualizer.final_rendering_ax.scatter(intersection_location[0], intersection_location[1], intersection_location[2], s=40, c='r')
+frame_xs, frame_ys, frame_zs = WireframeSphere(centre = intersection_location, radius=gun_model.a)
+viz_utils.visualizer.final_rendering_ax.plot_wireframe(frame_xs, frame_ys, frame_zs, color="r", alpha=0.1)
+
+
+
 print('matplotlib.animation.writers', matplotlib.animation.writers.list())
 Writer = matplotlib.animation.writers['html']
 writer = Writer(fps=15, metadata={'artist':'COBOD'}, bitrate=1800)

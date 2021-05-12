@@ -2,6 +2,8 @@ import numpy as np
 from numpy import linalg as LA
 import matplotlib
 import time
+
+import viz_utils
 from viz_utils import *
 
 
@@ -56,32 +58,18 @@ def closest_reachable_position(tool_position: [], x_lims: [], y_lims: [], z_lims
     return new_pos
 
 
-def can_tool_reach_position(tool_position: []) -> (bool, np.ndarray):
-    # new_pos = closest_reachable_position(tool_position, [0, 2], [0.4, 1.6], [0.5, 1.0])
-    new_pos = closest_reachable_position(tool_position, [0, 5], [0, 5], [0, 5.0])
+def can_tool_reach_position(tool_position: [], tool_limits) -> (bool, np.ndarray):
+    new_pos = closest_reachable_position(tool_position, *tool_limits)
     if (np.array(tool_position) == new_pos).all():
         return True, new_pos
     else:
         return False, new_pos
 
 
-def limit_tool_positions(all_tool_positions, surface_projected_positions,  all_tool_normals ) -> (np.ndarray, np.ndarray):
-    constrained_tool_positions, constrained_tool_normals = [], []
 
-    for desired_tool_position, surface_projected_position, desired_tool_normal in zip(all_tool_positions, surface_projected_positions, all_tool_normals):
-        reachable, new_position = can_tool_reach_position(desired_tool_position)
-        new_normal = desired_tool_normal
-        if not reachable:
-            new_normal = surface_projected_position-new_position
-            new_normal /= LA.norm(new_normal)
-        constrained_tool_positions.append(new_position), constrained_tool_normals.append(new_normal)
+def limit_tool_position(desired_tool_position, surface_projected_position, desired_tool_normal, tool_limits ) -> (np.ndarray, np.ndarray):
 
-    return constrained_tool_positions, constrained_tool_normals
-
-
-def limit_tool_position(desired_tool_position, surface_projected_position, desired_tool_normal ) -> (np.ndarray, np.ndarray):
-
-    reachable, new_position = can_tool_reach_position(desired_tool_position)
+    reachable, new_position = can_tool_reach_position(desired_tool_position, tool_limits)
     new_normal = desired_tool_normal
     if not reachable:
         new_normal = surface_projected_position-new_position
@@ -108,8 +96,7 @@ def get_intersection_point(tool_position, tool_normal, mesh, ray_mesh_intersecto
 
 
 def get_virtual_intersection_point(tool_position, tool_normal, point_sample_tree):
-    print('points ', point_sample_tree.query(tool_position, k=100))
-    closest_points = point_sample_tree.data[point_sample_tree.query(tool_position, k=100)[1]]
+    closest_points = point_sample_tree.data[point_sample_tree.query(tool_position, k=10)[1]] # returns [(distances), (indexes)]
 
     shortest_perp_dist = 1000
     clostest_point = []
@@ -117,18 +104,15 @@ def get_virtual_intersection_point(tool_position, tool_normal, point_sample_tree
     for point in closest_points:
         tool_pos_to_point = point - tool_position
         tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
-        tool_pos_to_point /= tool_pos_to_point_dist
 
-        angle_normal_to_point = angle_between_vectors(tool_pos_to_point, tool_normal)
-        normal_dist_h_dash = np.cos(angle_normal_to_point) * tool_pos_to_point_dist
-        rp = tool_pos_to_point * tool_pos_to_point_dist - tool_normal * normal_dist_h_dash
+        normal_dist_h_dash = np.dot(tool_normal, tool_pos_to_point)
+        rp = tool_pos_to_point - tool_normal * normal_dist_h_dash
 
         rp_dist = LA.norm(rp)
         if rp_dist< shortest_perp_dist:
-            print('shorter')
             shortest_perp_dist = rp_dist
             clostest_point = point-rp
-
+    viz_utils.visualizer.final_path_ax.scatter(clostest_point[0],clostest_point[1], clostest_point[2], s=30, c='r')
     return clostest_point
 
 def affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
@@ -136,37 +120,43 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
                                        tool_position, tool_normal,
                                        tool_major_axis_vec, tool_minor_axis_vec,
                                        gun_model, deposition_sim_time_resolution, scatter):
+
+    # Take the larger axis and double it = search radius
     query_ball_points = sample_tree.query_ball_point(intersection_location,
-                                                     (gun_model.b if gun_model.a <= gun_model.b else gun_model.a) * 1.0)
-    # print('query_ball_points', len(query_ball_points))
-    # print('intersection_location', intersection_location, 'tool_position', tool_position, 'tool_normal', tool_normal)
+                                                     (gun_model.b if gun_model.a <= gun_model.b else gun_model.a) * 2.0)
     k = 0
     for point_index in query_ball_points:
         point = sample_tree.data[point_index]
         # print(k, end=' ')
         k += 1
+
         tool_pos_to_point = point - tool_position
         tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
-        tool_pos_to_point /= tool_pos_to_point_dist
 
-        angle_normal_to_point = angle_between_vectors(tool_pos_to_point, tool_normal)
-        normal_dist_h_dash = np.cos(angle_normal_to_point) * tool_pos_to_point_dist
-        rp = tool_pos_to_point * tool_pos_to_point_dist - tool_normal * normal_dist_h_dash
-        angle_minor_axis_to_point = angle_between_vectors(rp / LA.norm(rp), tool_minor_axis_vec)
-        d_rp = LA.norm(rp)
-        # plot_normals(final_rendering_ax, [tool_position] , [tool_pos_to_point], norm_length=tool_pos_to_point_dist)
-        x, y = d_rp * np.sin(angle_minor_axis_to_point), d_rp * np.cos(angle_minor_axis_to_point)
+        normal_dist_h_dash = np.dot(tool_normal, tool_pos_to_point)
+        rp = tool_pos_to_point - tool_normal * normal_dist_h_dash
+
+        """
+        # Debugging
+        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [tool_position], [tool_normal], color='g', lw=1)
+        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [tool_position], [rp/LA.norm(rp)], color='b', lw=1, norm_length=LA.norm(rp))
+        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [tool_position], [tool_pos_to_point/LA.norm(tool_pos_to_point)], color='r', lw=1, norm_length = LA.norm(tool_pos_to_point))
+        """
+        x, y = np.dot(rp, tool_major_axis_vec), np.dot(rp, tool_minor_axis_vec)
+
         if gun_model.check_point_validity(x, y):
 
             # Estimate deposition thickness for this point
-            deposition_at_h = gun_model.deposition_intensity(x, y)
+            gun_model.set_h(normal_dist_h_dash)
+            deposition_at_h_dash = gun_model.deposition_intensity(x, y)
             multiplier = ((gun_model.h / tool_pos_to_point_dist) ** 2) * np.dot(surface_normal,
                                                                                 tool_pos_to_point) / (
                              np.dot(tool_pos_to_point, -tool_normal))
             # multiplier = ((gun_model.h / tool_pos_to_point_dist))
+            multiplier = np.dot(tool_pos_to_point/LA.norm(tool_pos_to_point), -surface_normal)
             # multiplier = 1
             # print('yes', multiplier)
-            deposition_thickness[point_index] += multiplier * deposition_at_h * deposition_sim_time_resolution
+            deposition_thickness[point_index] += multiplier * deposition_at_h_dash * deposition_sim_time_resolution
     # print('\nDrawing', max(deposition_thickness))
     n = matplotlib.colors.Normalize(vmin=min(deposition_thickness),
                                     vmax=max(deposition_thickness))
