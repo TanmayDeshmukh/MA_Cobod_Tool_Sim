@@ -78,7 +78,7 @@ class TrajectoryGenerator:
                 subpath_tool_positions = np.array(subpath_tool_positions)
                 viz_utils.visualizer.axs_unord.scatter(subpath_tool_positions[:, 0],subpath_tool_positions[:, 1],subpath_tool_positions[:, 2], c='g', s=20)
                 #viz_utils.plot_normals(viz_utils.visualizer.axs_temp, subpath_tool_positions, subpath_tool_normals, lw=1, hw=0.2)
-                viz_utils.plot_path(viz_utils.visualizer.axs_temp, vertices=subpath_tool_positions, color='g', lw=1, hw=0.01)
+                # viz_utils.plot_path(viz_utils.visualizer.axs_temp, vertices=subpath_tool_positions, color='g', lw=1, hw=0.01)
 
             """viz_c = 0
             for subpath_tool_positions in all_verts_this_section:

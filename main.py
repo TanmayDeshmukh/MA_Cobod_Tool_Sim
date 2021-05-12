@@ -24,18 +24,21 @@ mesh = trimesh.load_mesh('models/'+stl_file)
 
 use_eigen_vector_index          = 0
 constant_vel                    = 0.6  # m/s
+
 deposition_sim_time_resolution  = 0.1  # s
-tool_motion_time_resolution     = 0.5 # s
-standoff_dist                   = 0.5  # m
+tool_motion_time_resolution     = 0.3 # s
+
+standoff_dist                   = 0.4  # m
 
 number_of_samples               = 5000
 surface_sample_viz_size         = 7
 tool_pitch_speed_compensation   = False
 
-tool_limits = [0, 2], [0.4, 1.6], [0.7, 1.0] # X, Y, Z
+tool_limits = [0, 2], [-1.0, 1.8], [0.4, 1.5] # X, Y, Z
 # tool_limits = [-5.0, 5], [-5.0, 5], [-5.0, 5.0]
 
 gun_model = SprayGunModel()
+gun_model.set_h(standoff_dist)
 
 starting_slice_offset           =  gun_model.a/3
 
@@ -204,13 +207,12 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
         actual_norm_dist = LA.norm(tool_pos_to_point)
         tool_pos_to_point /= actual_norm_dist
 
-        # Validate orthogonality of the 3 vectors
-        print('(np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec)\n', np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec)
-        viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_normal],
-                               color='r', lw=1, hw=0.1)
-        #viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_minor_axis_vec], color='g', lw=1, hw=0.1)
-        # viz_utils.plot_normals(viz_utils.visualizer.axs_temp, [current_tool_position], [current_tool_major_axis_vec],lw=1,
-        #                       color='b')
+        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_normal],
+                               color='r', lw=1., hw=0.15, norm_length=0.2)
+        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_minor_axis_vec],
+                               color='g', lw=1., hw=0.1, norm_length=0.2)
+        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_major_axis_vec],
+                               lw=1., hw=0.15, color='b', norm_length=0.2)
 
         # A = np.column_stack((np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec))
         # I = A.T*A

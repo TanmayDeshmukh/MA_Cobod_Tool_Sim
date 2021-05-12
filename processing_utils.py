@@ -147,13 +147,11 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
         if gun_model.check_point_validity(x, y):
 
             # Estimate deposition thickness for this point
+            normal_dist_actual = LA.norm(intersection_location-tool_position)
             gun_model.set_h(normal_dist_h_dash)
             deposition_at_h_dash = gun_model.deposition_intensity(x, y)
-            multiplier = ((gun_model.h / tool_pos_to_point_dist) ** 2) * np.dot(surface_normal,
-                                                                                tool_pos_to_point) / (
-                             np.dot(tool_pos_to_point, -tool_normal))
-            # multiplier = ((gun_model.h / tool_pos_to_point_dist))
-            multiplier = np.dot(tool_pos_to_point/LA.norm(tool_pos_to_point), -surface_normal)
+            # multiplier = 1/((normal_dist_actual/tool_pos_to_point_dist)**2)*np.dot(tool_pos_to_point/tool_pos_to_point_dist, -surface_normal)/np.dot(tool_pos_to_point/tool_pos_to_point_dist, tool_normal)**3
+            multiplier = ((normal_dist_actual/normal_dist_h_dash)**2)*np.dot(tool_pos_to_point/LA.norm(tool_pos_to_point), -surface_normal)
             # multiplier = 1
             # print('yes', multiplier)
             deposition_thickness[point_index] += multiplier * deposition_at_h_dash * deposition_sim_time_resolution
