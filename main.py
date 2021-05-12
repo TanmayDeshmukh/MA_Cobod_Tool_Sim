@@ -219,8 +219,6 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
         # A = np.column_stack((np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec))
         # I = A.T*A
 
-        mag = LA.norm(np.dot(current_tool_normal, current_tool_minor_axis_vec))+LA.norm(np.dot(current_tool_minor_axis_vec, current_tool_major_axis_vec))
-
         time_scale = 1.0
         if tool_pitch_speed_compensation:
             time_scale = 1.0 / surface_scaling( gun_model.h, actual_norm_dist, surface_normal, tool_pos_to_point,
@@ -294,7 +292,7 @@ def update(frame_number, scatter, deposition_thickness):
                     current_tool_travel_vec = next_intersection_location - intersection_location
                     current_tool_travel_vec /= LA.norm(current_tool_travel_vec)
 
-                    travel_component_on_normal = np.dot(current_tool_normal, current_tool_travel_vec)
+                    travel_component_on_normal = np.dot(current_tool_travel_vec, current_tool_normal)
 
                     current_tool_minor_axis_vec = current_tool_travel_vec-travel_component_on_normal
                     current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)

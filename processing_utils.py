@@ -105,7 +105,7 @@ def get_virtual_intersection_point(tool_position, tool_normal, point_sample_tree
         tool_pos_to_point = point - tool_position
         tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
 
-        normal_dist_h_dash = np.dot(tool_normal, tool_pos_to_point)
+        normal_dist_h_dash = np.dot(tool_pos_to_point, tool_normal)
         rp = tool_pos_to_point - tool_normal * normal_dist_h_dash
 
         rp_dist = LA.norm(rp)
@@ -117,8 +117,7 @@ def get_virtual_intersection_point(tool_position, tool_normal, point_sample_tree
 
 
 def surface_scaling(expected_h, actual_h, surface_normal: [], tool_pos_to_point_vec: [], tool_normal: []) -> float:
-    multiplier = ((expected_h / actual_h) ** 2) * np.dot(surface_normal,
-                                                                        tool_pos_to_point_vec) / (
+    multiplier = ((expected_h / actual_h) ** 2) * np.dot(tool_pos_to_point_vec, surface_normal) / (
                      np.dot(tool_pos_to_point_vec, -tool_normal))
     return multiplier
 
