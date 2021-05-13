@@ -35,21 +35,27 @@ def visualize_deposition(template, X_grid, Y_grid):
     fig = plt.figure(figsize=(8, 3))
     fig.tight_layout()
     fig.canvas.set_window_title('Surface deposition intensity')
-    fig.subplots_adjust(left=0.05, right=0.95, top=1.0, bottom=00.0)
+    fig.subplots_adjust(left=0.1, right=0.95, top=1.0, bottom=0.05)
+    template *= 1000
     ax1 = fig.add_subplot(1, 2, 1)
     ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+    ax1.set_xlabel('X(m)'), ax2.set_xlabel('Y(m)')
+    ax1.set_ylabel('Y(m)'), ax2.set_xlabel('X(m)')
+    ax2.set_zlabel('Z(mm)')
+    # ax2.ticklabel_format(axis="z", style="sci", scilimits=(-1, 2))
+    template = np.fliplr(template)
     ax2.plot_surface(X_grid, Y_grid, template,
                      antialiased=False, cmap="coolwarm", lw=0.5, rstride=1, cstride=1, alpha=0.5)
     ax2.contour(X_grid, Y_grid, template, 10, lw=3, colors="k", linestyles="solid")
     # ax.contour(X_grid, Y_grid, template, zdir='z', offset=self.f_max*1.5, cmap="coolwarm")
     # ax2.contour(X_grid, Y_grid, template, zdir='x', offset=-np.min(X_grid[0]), cmap="coolwarm")
     # ax2.contour(X_grid, Y_grid, template, zdir='y', offset=np.max(Y_grid[:, 0]), cmap="coolwarm")
-    template = np.fliplr(template)
+
     ax1.imshow(template, extent=[np.min(X_grid[0]), np.max(X_grid[0]), np.min(Y_grid[:, 0]), np.max(Y_grid[:, 0])])
 
     limits = np.array([getattr(ax2, f'get_{axis}lim')() for axis in 'xyz'])
     pnp = np.ptp(limits, axis=1)
-    pnp[2] = pnp[2]*500
+    pnp[2] = pnp[2]*0.4
     ax2.set_box_aspect(pnp)
 
     min_x, max_x = np.min(X_grid[0]), np.max(X_grid[0])

@@ -5,7 +5,7 @@ import viz_utils
 
 
 class SprayGunModel:
-    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(90), min_axis_angle = np.radians(45), f_max=0.001):
+    def __init__(self, beta1=3.0, beta2=3.0, maj_axis_angle = np.radians(90), min_axis_angle = np.radians(90), f_max=0.001):
         self.beta1 = beta1
         self.beta2 = beta2
         self.maj_axis_angle = maj_axis_angle
@@ -21,14 +21,12 @@ class SprayGunModel:
         self.a = np.tan(self.maj_axis_angle/2) * self.h  # 1.0
         self.b = np.tan(self.min_axis_angle/2) * self.h  # 0.4
 
-
     def visualize_spray_cone(self):
         # TODO
         pass
 
     def check_point_validity(self, x, y) -> bool:
-        # (self.b * np.sqrt(1 - (x ** 2) / self.a ** 2))
-        return abs(x) < self.a and abs(y) < self.b
+        return (x/self.a)**2 + (y/self.b)**2 <= 1
 
     def deposition_intensity(self, x, y) -> float:
         intensity=0
@@ -90,6 +88,7 @@ class SprayGunModel:
 
 if __name__ == '__main__':
     gun_model = SprayGunModel()
+    print('Axis lengths: a=', gun_model.a, '; b=', gun_model.b)
     print('Gun Model', gun_model)
     canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(0))
     viz_utils.visualize_deposition(canvas, X_grid, Y_grid)
