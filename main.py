@@ -30,19 +30,18 @@ constant_vel                    = 0.6  # m/s
 deposition_sim_time_resolution  = 0.1  # s
 tool_motion_time_resolution     = 0.3 # s
 
-standoff_dist                   = 0.4  # m
+standoff_dist                   = 0.5  # m
 
 number_of_samples               = 5000
-surface_sample_viz_size         = 7
+surface_sample_viz_size         = 10
 tool_pitch_speed_compensation   = False
 
 tool_limits = [0, 2], [-1.0, 1.8], [0.4, 1.5] # X, Y, Z
-# tool_limits = [-5.0, 5], [-5.0, 5], [-5.0, 5.0]
+tool_limits = [-5.0, 5], [-5.0, 5], [-5.0, 5.0]
 
 gun_model = SprayGunModel()
-gun_model.set_h(standoff_dist)
 
-starting_slice_offset           =  gun_model.a/3
+starting_slice_offset           =  0 #.005 #  gun_model.a/3
 
 
 slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
@@ -185,14 +184,14 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
     for pos_index, (current_tool_position, current_tool_normal) in enumerate(
             zip(continuous_tool_positions, continuous_tool_normals)):
 
-        intersection_location, surface_normal = get_intersection_point(current_tool_position,  current_tool_normal,
+        intersection_location, surface_normal_at_intersect = get_intersection_point(current_tool_position,  current_tool_normal,
                                                                        mesh, ray_mesh_intersector, sample_tree)
 
         current_tool_position, current_tool_normal = limit_tool_position(current_tool_position, intersection_location,
                                                                          current_tool_normal, tool_limits)
 
         if pos_index < len(continuous_tool_positions) - 1:
-            next_intersection_location, next_surface_normal = get_intersection_point(
+            next_intersection_location, next_surface_normal_at_intersect = get_intersection_point(
                 continuous_tool_positions[pos_index + 1], continuous_tool_normals[pos_index + 1],
                 mesh, ray_mesh_intersector, sample_tree)
 
@@ -209,19 +208,19 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
         actual_norm_dist = LA.norm(tool_pos_to_point)
         tool_pos_to_point /= actual_norm_dist
 
-        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_normal],
+        """viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_normal],
                                color='r', lw=1., hw=0.15, norm_length=0.2)
         viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_minor_axis_vec],
-                               color='g', lw=1., hw=0.1, norm_length=0.2)
-        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_major_axis_vec],
-                               lw=1., hw=0.15, color='b', norm_length=0.2)
+                               color='g', lw=1., hw=0.1, norm_length=0.2)"""
+        # viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_major_axis_vec],
+        #                        lw=1., hw=0.15, color='b', norm_length=0.2)
 
         # A = np.column_stack((np.array(current_tool_normal), current_tool_major_axis_vec, current_tool_minor_axis_vec))
         # I = A.T*A
 
         time_scale = 1.0
         if tool_pitch_speed_compensation:
-            time_scale = 1.0 / surface_scaling( gun_model.h, actual_norm_dist, surface_normal, tool_pos_to_point,
+            time_scale = 1.0 / surface_scaling( gun_model.h, actual_norm_dist, surface_normal_at_intersect, tool_pos_to_point,
                                                current_tool_normal)
         dict = {"time_stamp": time_stamp*actual_norm_dist/standoff_dist,
                 "tool_position": list(current_tool_position),
@@ -252,11 +251,12 @@ tool_major_axis_vecs = []
 tool_minor_axis_vecs = []
 intersection_index_tri = -1
 
+# paint_pass = len(total_tool_positions)-1
 
 def update(frame_number, scatter, deposition_thickness):
     global paint_pass, j,sorted_intersection_locations, continuous_tool_positions, continuous_tool_normals, \
         intersection_index_tri, tool_major_axis_vecs, tool_minor_axis_vecs, sample_tree, mesh, \
-        deposition_sim_time_resolution, gun_model, tool_limits
+        deposition_sim_time_resolution, gun_model, tool_limits, sample_face_indexes
 
     if paint_pass >= len(total_tool_positions):
         print('\ndeposition_thickness\nmin:', deposition_thickness.min() * 1000, 'mm\nmax',
@@ -303,7 +303,7 @@ def update(frame_number, scatter, deposition_thickness):
 
             #viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, continuous_tool_positions, tool_minor_axis_vecs, norm_length=0.3, color='g')
 
-        intersection_location, surface_normal = get_intersection_point(
+        intersection_location, surface_normal_at_intersect = get_intersection_point(
             continuous_tool_positions[j], continuous_tool_normals[j],mesh, ray_mesh_intersector, sample_tree)
         continuous_tool_positions[j], continuous_tool_normals[j] = limit_tool_position(continuous_tool_positions[j], intersection_location,
                                                                          continuous_tool_normals[j], tool_limits)
@@ -315,7 +315,7 @@ def update(frame_number, scatter, deposition_thickness):
 
         time_scale = 1.0
         if tool_pitch_speed_compensation:
-            time_scale = 1.0/ surface_scaling(gun_model.h, actual_norm_dist, surface_normal, tool_pos_to_point, continuous_tool_normals[j])
+            time_scale = 1.0/ surface_scaling(gun_model.h, actual_norm_dist, surface_normal_at_intersect, tool_pos_to_point, continuous_tool_normals[j])
 
         if j%5==0:
             # viz_utils.visualizer.final_rendering_ax.scatter(intersection_location[0], intersection_location[1], intersection_location[2],
@@ -344,8 +344,8 @@ def update(frame_number, scatter, deposition_thickness):
         # print('time_scale', time_scale, 'actual_norm_dist', actual_norm_dist, 'standoff_dist', standoff_dist)
         animation.event_source.interval = deposition_sim_time_resolution*1000*time_scale
         gun_model.set_h(actual_norm_dist)
-        paint_simulation.affected_points_for_tool_position(deposition_thickness, sample_tree, mesh,
-                                           surface_normal, intersection_location,
+        paint_simulation.affected_points_for_tool_position(deposition_thickness, sample_tree, sample_face_indexes, mesh,
+                                           intersection_location,
                                            continuous_tool_positions[j], continuous_tool_normals[j],
                                            tool_major_axis_vecs[j], tool_minor_axis_vecs[j],
                                            gun_model, deposition_sim_time_resolution*time_scale, scatter)

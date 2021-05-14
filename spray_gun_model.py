@@ -5,7 +5,7 @@ import viz_utils
 
 
 class SprayGunModel:
-    def __init__(self, beta1=3.0, beta2=3.0, maj_axis_angle = np.radians(90), min_axis_angle = np.radians(90), f_max=0.001):
+    def __init__(self, beta1=3.0, beta2=3.0, maj_axis_angle = np.radians(75), min_axis_angle = np.radians(30), f_max=0.001):
         self.beta1 = beta1
         self.beta2 = beta2
         self.maj_axis_angle = maj_axis_angle
@@ -30,12 +30,10 @@ class SprayGunModel:
 
     def deposition_intensity(self, x, y) -> float:
         intensity=0
-        try:
+        if self.check_point_validity(x, y):
             intensity = np.clip(self.f_max * pow(1.0 - (x ** 2) / self.a ** 2, self.beta1 - 1) * pow(
                 1.0 - (y ** 2) / ((self.b ** 2) * (1 - (x ** 2) / self.a ** 2)), self.beta2 - 1), 0, self.f_max)
             intensity = np.nan_to_num(intensity, copy=True, nan=0.0, posinf=0.0, neginf=0.0)
-        except:
-            pass
         return intensity
 
     # Used for finding optimal overlap distance

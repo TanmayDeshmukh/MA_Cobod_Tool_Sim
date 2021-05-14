@@ -196,6 +196,10 @@ class Visualizer:
         self.final_rendering_fig.tight_layout()
         self.final_rendering_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
 
+        self.final_rendering_ax.set_xlabel('X(m)')
+        self.final_rendering_ax.set_ylabel('Y(m)')
+        self.final_rendering_ax.set_zlabel('Z(m)')
+
         self.all_axs =  [self.axs_init, self.final_path_ax, self.axs_temp, self.axs_unord, self.axs_slice, self.axs_mesh]
 
     def mesh_view_adjust(self, mesh):
