@@ -91,7 +91,6 @@ def get_intersection_point(tool_position, tool_normal, mesh, ray_mesh_intersecto
         # no solution found
         intersection_location = get_virtual_intersection_point(tool_position, tool_normal, point_sample_tree)
         surface_normal = -tool_normal
-        print('intersection_location', intersection_location, 'surface_normal', surface_normal)
     return intersection_location, surface_normal
 
 
@@ -99,21 +98,21 @@ def get_virtual_intersection_point(tool_position, tool_normal, point_sample_tree
     closest_points = point_sample_tree.data[point_sample_tree.query(tool_position, k=10)[1]] # returns [(distances), (indexes)]
 
     shortest_perp_dist = 1000
-    clostest_point = []
+    vir_int_pt = []
 
     for point in closest_points:
         tool_pos_to_point = point - tool_position
         tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
 
-        normal_dist_h_dash = np.dot(tool_pos_to_point, tool_normal)
+        normal_dist_h_dash = LA.norm(np.dot(tool_pos_to_point, tool_normal))
         rp = tool_pos_to_point - tool_normal * normal_dist_h_dash
 
         rp_dist = LA.norm(rp)
         if rp_dist< shortest_perp_dist:
             shortest_perp_dist = rp_dist
-            clostest_point = point-rp
-    viz_utils.visualizer.final_path_ax.scatter(clostest_point[0],clostest_point[1], clostest_point[2], s=30, c='r')
-    return clostest_point
+            vir_int_pt = tool_position+tool_normal*normal_dist_h_dash
+    viz_utils.visualizer.axs_init.scatter(vir_int_pt[0],vir_int_pt[1], vir_int_pt[2], s=30, c='r')
+    return vir_int_pt
 
 
 def surface_scaling(expected_h, actual_h, surface_normal: [], tool_pos_to_point_vec: [], tool_normal: []) -> float:

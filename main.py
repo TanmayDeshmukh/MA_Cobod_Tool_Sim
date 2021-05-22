@@ -2,10 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import numpy as np
 import trimesh
-import itertools
-import copy
 from scipy import spatial
 
 from overlap_optimisation import *
@@ -18,36 +15,39 @@ import surface_selection_tool
 import viz_utils
 import seaborn as sns
 import paint_simulation
-import warnings
 
 # warnings.filterwarnings('error')
-stl_file = 'wall_type_1_angled.STL' # wall_type_1_angled.STL wall_type_2_vertical
-mesh = trimesh.load_mesh('models/'+stl_file)
+stl_file = 'wall_type_1_angled.STL'  # wall_type_1_angled.STL wall_type_2_vertical wall_type_1_large_angled.STL wall_type_3_large_angled.STL
+mesh = trimesh.load_mesh('models/' + stl_file)
 
-use_eigen_vector_index          = 0
-constant_vel                    = 0.6  # m/s
+use_eigen_vector_index = 0
+constant_vel = 0.6  # m/s
 
-deposition_sim_time_resolution  = 0.1  # s
-tool_motion_time_resolution     = 0.3 # s
+deposition_sim_time_resolution = 0.1  # s
+tool_motion_time_resolution = 0.5  # s
 
-standoff_dist                   = 0.5  # m
+standoff_dist = 0.6  # m
 
-number_of_samples               = 5000
-surface_sample_viz_size         = 10
-tool_pitch_speed_compensation   = False
+number_of_samples = 10000
+surface_sample_viz_size = 7
+tool_pitch_speed_compensation = False
 
-tool_limits = [0, 2], [-1.0, 1.8], [0.4, 1.5] # X, Y, Z
-tool_limits = [-5.0, 5], [-5.0, 5], [-5.0, 5.0]
+# tool_limits = [0, 2], [-1.0, 1.9], [0, 2.5] # X, Y, Z
+tool_limits = [-5.0, 5], [-5.0, 5], [0.0, 5.0]
 
 gun_model = SprayGunModel()
 
-starting_slice_offset           =  0 #.005 #  gun_model.a/3
+starting_slice_offset = 0.0  # .005 #  gun_model.a/3
 
+slicing_distance = 0.3
+try:
+    slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a / 2
+except:
+    print('---------------EXCEPTION IN FINDING OPTIMAL DIST-----------------')
+# slicing_distance = 0.5
 
-slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a/2
-
-get_overlap_profile(gun_model, slicing_distance - gun_model.a/2, 0, 0)
-get_1d_overlap_profile(gun_model, slicing_distance - gun_model.a/2, 0, 0, True)
+disp_overlap_profile(gun_model, slicing_distance - gun_model.a / 2, 0, 0)
+get_1d_overlap_profile(gun_model, slicing_distance - gun_model.a / 2, 0, 0, True)
 
 viz_utils.open_figures()
 viz_utils.visualizer.mesh_view_adjust(mesh)
@@ -57,7 +57,7 @@ mesh.update_faces(faces_mask)
 # Remove all vertices in the current mesh which are not referenced by a face.
 mesh.remove_unreferenced_vertices()
 mesh.remove_infinite_values()
-mesh.export(stl_file+'_filtered_surface.stl', file_type='stl_ascii')
+mesh.export(stl_file + '_filtered_surface.stl', file_type='stl_ascii')
 
 # ############### Full model #################
 viz_utils.visualizer.draw_mesh(mesh)
@@ -70,10 +70,10 @@ idx = eigen_values.argsort()[::-1]
 eigen_values = eigen_values[idx]
 eigen_vectors = eigen_vectors[:, idx]
 
-
 print('Gun model a, b', gun_model.a, gun_model.b)
-ori_start = np.min(mesh.vertices, axis=0) # - eigen_vectors[:, use_eigen_vector_index] * (slicing_distance- gun_model.a) #  eigen_vectors[:, 2] * (eigen_values[2] * 10) +
-stop = np.max(mesh.vertices, axis=0) # + eigen_vectors[:, use_eigen_vector_index] * slicing_distance
+ori_start = np.min(mesh.vertices,
+                   axis=0)  # - eigen_vectors[:, use_eigen_vector_index] * (slicing_distance- gun_model.a) #  eigen_vectors[:, 2] * (eigen_values[2] * 10) +
+stop = np.max(mesh.vertices, axis=0)  # + eigen_vectors[:, use_eigen_vector_index] * slicing_distance
 if use_eigen_vector_index == 0:
     ori_start[2] = stop[2] = 0
 elif use_eigen_vector_index == 1:
@@ -85,22 +85,19 @@ elif use_eigen_vector_index == 2:
 slice_direction = stop - ori_start
 length = LA.norm(slice_direction)
 slice_direction /= length
-start = ori_start + slice_direction*starting_slice_offset
+start = ori_start + slice_direction * starting_slice_offset
 slice_direction = stop - start
 length = LA.norm(slice_direction)
 slice_direction /= length
 
 if starting_slice_offset:
-    viz_utils.plot_path(viz_utils.visualizer.axs_mesh, [ori_start ,start], color='yellow')
-
-# print('start ', start, stop, length, np.arange(0, length, step=slicing_distance))
-# print("Eigenvector: \n", eigen_vectors, "\n")
+    viz_utils.plot_path(viz_utils.visualizer.axs_mesh, [ori_start, start], color='yellow')
 
 print('Selected EV', eigen_vectors[:, use_eigen_vector_index])
 print('slice_direction', slice_direction)
-viz_utils.plot_normals(viz_utils.visualizer.axs_mesh, [start], [eigen_vectors[:, use_eigen_vector_index]], norm_length=length, color='r', lw=1)
+viz_utils.plot_normals(viz_utils.visualizer.axs_mesh, [start], [eigen_vectors[:, use_eigen_vector_index]],
+                       norm_length=length, color='r', lw=1)
 viz_utils.plot_normals(viz_utils.visualizer.axs_slice, [start], [slice_direction], norm_length=length, color='b', lw=1)
-# print('eigen_vectors[:,0]', eigen_vectors[:, 0])
 
 # ################################# Slicing #####################################
 
@@ -116,7 +113,6 @@ print('empty slices', [i for i, s in enumerate(sections) if not s])
 print('sections', len(sections))
 sections = [s for s in sections if s]
 print('sections', len(sections))
-
 
 d3sections = [section.to_3D() for section in sections]
 
@@ -137,23 +133,13 @@ for i, (all_verts_this_section, tool_normals_this_section) in enumerate(zip(all_
     plot_path(viz_utils.visualizer.axs_init, vertices=all_verts_this_section)
     viz_utils.plot_normals(viz_utils.visualizer.axs_init, vertices=all_verts_this_section,
                            directions=tool_normals_this_section)
-    """
-    if i > 0:
-        plot_path(viz_utils.visualizer.axs_init, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]],
-                  color='k')
-        plot_path(viz_utils.visualizer.final_path_ax, vertices=[all_verts_this_section[i - 1][-1], all_verts_this_section[i][0]],
-                  color='k')
-        vert_iter += 1
-    """
+
 for i in range(int(len(section_end_vert_pairs) / 2)):
-    plot_path(viz_utils.visualizer.axs_init, vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
+    plot_path(viz_utils.visualizer.axs_init,
+              vertices=[section_end_vert_pairs[i * 2], section_end_vert_pairs[i * 2 + 1]], color='k')
 
 plt.draw()
 plt.pause(0.001)
-
-print('all_tool_locations\n', all_tool_locations, '\nall_tool_normals\n', all_tool_normals)
-
-
 
 # Sample points on surface for simulation
 samples, sample_face_indexes = trimesh.sample.sample_surface_even(mesh, number_of_samples, radius=None)
@@ -166,8 +152,9 @@ o3d.io.write_point_cloud("wall_surface.pcd", pcd)
 
 # ################################# Calculate paint passes #################################
 deposition_thickness = np.array(deposition_thickness)
-scatter = viz_utils.visualizer.final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2], s=surface_sample_viz_size, picker = 2)#, c=deposition_thickness, cmap='coolwarm')
-
+scatter = viz_utils.visualizer.final_rendering_ax.scatter(samples[:, 0], samples[:, 1], samples[:, 2],
+                                                          s=surface_sample_viz_size,
+                                                          picker=2)  # , c=deposition_thickness, cmap='coolwarm')
 
 # ############### Writing to a JSON file ##################
 file_data = []
@@ -184,8 +171,10 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
     for pos_index, (current_tool_position, current_tool_normal) in enumerate(
             zip(continuous_tool_positions, continuous_tool_normals)):
 
-        intersection_location, surface_normal_at_intersect = get_intersection_point(current_tool_position,  current_tool_normal,
-                                                                       mesh, ray_mesh_intersector, sample_tree)
+        intersection_location, surface_normal_at_intersect = get_intersection_point(current_tool_position,
+                                                                                    current_tool_normal,
+                                                                                    mesh, ray_mesh_intersector,
+                                                                                    sample_tree)
 
         current_tool_position, current_tool_normal = limit_tool_position(current_tool_position, intersection_location,
                                                                          current_tool_normal, tool_limits)
@@ -199,19 +188,20 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
             current_tool_travel_vec /= LA.norm(current_tool_travel_vec)
 
             travel_component_on_normal = np.dot(current_tool_normal, current_tool_travel_vec)
-            current_tool_minor_axis_vec = current_tool_travel_vec - travel_component_on_normal*current_tool_normal
+            current_tool_minor_axis_vec = current_tool_travel_vec - travel_component_on_normal * current_tool_normal
             current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
 
             current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
 
-        tool_pos_to_point = current_tool_position-intersection_location
+        tool_pos_to_point = current_tool_position - intersection_location
         actual_norm_dist = LA.norm(tool_pos_to_point)
         tool_pos_to_point /= actual_norm_dist
 
-        """viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_normal],
+        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_normal],
                                color='r', lw=1., hw=0.15, norm_length=0.2)
-        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_minor_axis_vec],
-                               color='g', lw=1., hw=0.1, norm_length=0.2)"""
+        viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position],
+                               [current_tool_minor_axis_vec],
+                               color='g', lw=1., hw=0.1, norm_length=0.2)
         # viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, [current_tool_position], [current_tool_major_axis_vec],
         #                        lw=1., hw=0.15, color='b', norm_length=0.2)
 
@@ -220,13 +210,14 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
 
         time_scale = 1.0
         if tool_pitch_speed_compensation:
-            time_scale = 1.0 / surface_scaling( gun_model.h, actual_norm_dist, surface_normal_at_intersect, tool_pos_to_point,
+            time_scale = 1.0 / surface_scaling(gun_model.h, actual_norm_dist, surface_normal_at_intersect,
+                                               tool_pos_to_point,
                                                current_tool_normal)
-        dict = {"time_stamp": time_stamp*actual_norm_dist/standoff_dist,
+        dict = {"time_stamp": time_stamp * actual_norm_dist / standoff_dist,
                 "tool_position": list(current_tool_position),
                 "minor_axis_vec": current_tool_minor_axis_vec.tolist(),
                 "major_axis_vec": current_tool_major_axis_vec.tolist(),
-                "spray_on": False if pos_index==len(continuous_tool_positions)-1 else True,
+                "spray_on": False if pos_index == len(continuous_tool_positions) - 1 else True,
                 "tool_normal": list(current_tool_normal),
                 }
         file_data.append(dict)
@@ -234,7 +225,6 @@ for continuous_tool_positions, continuous_tool_normals in zip(all_tool_positions
     total_time_count += time_stamp
 with open('tool_positions.json', 'w') as outfile:
     json.dump(file_data, outfile, indent=2)
-
 
 # ########### Create pose list from constant time interval ##############
 
@@ -251,73 +241,75 @@ tool_major_axis_vecs = []
 tool_minor_axis_vecs = []
 intersection_index_tri = -1
 
+
 # paint_pass = len(total_tool_positions)-1
 
 def update(frame_number, scatter, deposition_thickness):
-    global paint_pass, j,sorted_intersection_locations, continuous_tool_positions, continuous_tool_normals, \
+    global paint_pass, j, sorted_intersection_locations, continuous_tool_positions, continuous_tool_normals, \
         intersection_index_tri, tool_major_axis_vecs, tool_minor_axis_vecs, sample_tree, mesh, \
         deposition_sim_time_resolution, gun_model, tool_limits, sample_face_indexes
 
     if paint_pass >= len(total_tool_positions):
         print('\ndeposition_thickness\nmin:', deposition_thickness.min() * 1000, 'mm\nmax',
-              deposition_thickness.max() * 1000, 'mm\ndiff: ', (deposition_thickness.max()-deposition_thickness.min())*1000,
+              deposition_thickness.max() * 1000, 'mm\ndiff: ',
+              (deposition_thickness.max() - deposition_thickness.min()) * 1000,
               'mm\nstd:', deposition_thickness.std(0) * 1000, '\nmean:', deposition_thickness.mean(0) * 1000,
-              '\nmedian:', np.median(deposition_thickness)*1000)
-        #sns.distplot(deposition_thickness*1000, ax=viz_utils.visualizer.ax_distrib_hist)
+              '\nmedian:', np.median(deposition_thickness) * 1000)
+        # sns.distplot(deposition_thickness*1000, ax=viz_utils.visualizer.ax_distrib_hist)
         # plt.draw()
-        #plt.show()
+        # plt.show()
         animation.event_source.stop()
         animation.save_count = frame_number
     else:
-        if j==0:
-            continuous_tool_positions, continuous_tool_normals = all_tool_positions[paint_pass], tool_normals[paint_pass]
+        if j == 0:
+            continuous_tool_positions, continuous_tool_normals = all_tool_positions[paint_pass], tool_normals[
+                paint_pass]
             # plot_path(viz_utils.visualizer.final_rendering_ax, continuous_tool_positions)
             # viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, continuous_tool_positions, continuous_tool_normals)
             tool_major_axis_vecs, tool_minor_axis_vecs = [], []
-            # print('Estim axis vecs')
-            current_tool_minor_axis_vec=[]
-            current_tool_major_axis_vec=[]
+            current_tool_minor_axis_vec = []
+            current_tool_major_axis_vec = []
             for pos_index, (current_tool_position, current_tool_normal) in enumerate(
                     zip(continuous_tool_positions, continuous_tool_normals)):
                 # set minor axis direction to direction of movement
                 intersection_location, surface_normal = get_intersection_point(
                     continuous_tool_positions[pos_index], continuous_tool_normals[pos_index],
                     mesh, ray_mesh_intersector, sample_tree)
-                if pos_index < len(continuous_tool_positions)-1:
-                    # if angle_between_vectors(current_tool_normal, continuous_tool_normals[pos_index+1]) > 0:
+                if pos_index < len(continuous_tool_positions) - 1:
                     next_intersection_location, next_surface_normal = get_intersection_point(
                         continuous_tool_positions[pos_index + 1], continuous_tool_normals[pos_index + 1],
                         mesh, ray_mesh_intersector, sample_tree)
-
                     current_tool_travel_vec = next_intersection_location - intersection_location
                     current_tool_travel_vec /= LA.norm(current_tool_travel_vec)
 
                     travel_component_on_normal = np.dot(current_tool_travel_vec, current_tool_normal)
 
-                    current_tool_minor_axis_vec = current_tool_travel_vec-travel_component_on_normal
+                    current_tool_minor_axis_vec = current_tool_travel_vec - travel_component_on_normal
                     current_tool_minor_axis_vec /= LA.norm(current_tool_minor_axis_vec)
 
                     current_tool_major_axis_vec = np.cross(current_tool_minor_axis_vec, current_tool_normal)
+
                 tool_major_axis_vecs.append(current_tool_major_axis_vec)
                 tool_minor_axis_vecs.append(current_tool_minor_axis_vec)
 
-            #viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, continuous_tool_positions, tool_minor_axis_vecs, norm_length=0.3, color='g')
+            # viz_utils.plot_normals(viz_utils.visualizer.final_rendering_ax, continuous_tool_positions, tool_minor_axis_vecs, norm_length=0.3, color='g')
 
         intersection_location, surface_normal_at_intersect = get_intersection_point(
-            continuous_tool_positions[j], continuous_tool_normals[j],mesh, ray_mesh_intersector, sample_tree)
-        continuous_tool_positions[j], continuous_tool_normals[j] = limit_tool_position(continuous_tool_positions[j], intersection_location,
-                                                                         continuous_tool_normals[j], tool_limits)
+            continuous_tool_positions[j], continuous_tool_normals[j], mesh, ray_mesh_intersector, sample_tree)
+        continuous_tool_positions[j], continuous_tool_normals[j] = limit_tool_position(continuous_tool_positions[j],
+                                                                                       intersection_location,
+                                                                                       continuous_tool_normals[j],
+                                                                                       tool_limits)
 
         tool_pos_to_point = continuous_tool_positions[j] - intersection_location
         actual_norm_dist = LA.norm(tool_pos_to_point)
-        # print('intersection_index_tri', intersection_index_tri)
-        # print('intersection_index_tri[j]', intersection_index_tri[j])
 
         time_scale = 1.0
         if tool_pitch_speed_compensation:
-            time_scale = 1.0/ surface_scaling(gun_model.h, actual_norm_dist, surface_normal_at_intersect, tool_pos_to_point, continuous_tool_normals[j])
+            time_scale = 1.0 / surface_scaling(gun_model.h, actual_norm_dist, surface_normal_at_intersect,
+                                               tool_pos_to_point, continuous_tool_normals[j])
 
-        if j%5==0:
+        if j % 5 == 0 or j == len(continuous_tool_positions) - 1:
             # viz_utils.visualizer.final_rendering_ax.scatter(intersection_location[0], intersection_location[1], intersection_location[2],
             #                            s=surface_sample_viz_size,
             #                            picker=2, c='r')  # , c=deposition_thickness, cmap='coolwarm')
@@ -327,45 +319,40 @@ def update(frame_number, scatter, deposition_thickness):
             # viz_utils.visualizer.ax_distrib_hist.hist(deposition_thickness, color='blue', edgecolor='black', bins='auto', density=False)
             viz_utils.visualizer.ax_distrib_hist.set_xlabel('deposition thickness (mm)')
             binwidth = 0.01
-            min_val,max_val = np.min(deposition_thickness)*1000, np.max(deposition_thickness)*1000
+            min_val, max_val = np.min(deposition_thickness) * 1000, np.max(deposition_thickness) * 1000
             val_width = (max_val - min_val)
             n_bins = int(val_width / binwidth)
-            if n_bins==0:
-                n_bins=1
-            #print('bins', n_bins, val_width)
-            sns.histplot(deposition_thickness * 1000, kde=True, bins=n_bins, ax=viz_utils.visualizer.ax_distrib_hist) # , binrange=(min_val, max_val)
-            arange =  np.arange(min_val , max_val , binwidth)
-            # print('np.arange(min_val , max_val , binwidth)', arange, 'max', max_val)
+            if n_bins == 0:
+                n_bins = 1
+            sns.histplot(deposition_thickness * 1000, kde=True, bins=n_bins,
+                         ax=viz_utils.visualizer.ax_distrib_hist)  # , binrange=(min_val, max_val)
             # viz_utils.visualizer.ax_distrib_hist.set_xticks(np.arange(min_val -binwidth/2, max_val +binwidth/2, binwidth))
-            #if arange.shape[0] > 0:
+            # if arange.shape[0] > 0:
             #     viz_utils.visualizer.ax_distrib_hist.set_xlim(0, arange[-1]+binwidth/2)
             plt.draw()
         # time_scale = actual_norm_dist/standoff_dist
-        # print('time_scale', time_scale, 'actual_norm_dist', actual_norm_dist, 'standoff_dist', standoff_dist)
-        animation.event_source.interval = deposition_sim_time_resolution*1000*time_scale
+        animation.event_source.interval = deposition_sim_time_resolution * 1000 * time_scale
         gun_model.set_h(actual_norm_dist)
         paint_simulation.affected_points_for_tool_position(deposition_thickness, sample_tree, sample_face_indexes, mesh,
-                                           intersection_location,
-                                           continuous_tool_positions[j], continuous_tool_normals[j],
-                                           tool_major_axis_vecs[j], tool_minor_axis_vecs[j],
-                                           gun_model, deposition_sim_time_resolution*time_scale, scatter)
+                                                           intersection_location,
+                                                           continuous_tool_positions[j], continuous_tool_normals[j],
+                                                           tool_major_axis_vecs[j], tool_minor_axis_vecs[j],
+                                                           gun_model, deposition_sim_time_resolution * time_scale,
+                                                           scatter)
 
         j += 1
-
         if j >= len(continuous_tool_positions):
-            paint_pass +=1
-            j=0
+            paint_pass += 1
+            j = 0
 
     return scatter,
 
 
-
-
-# final_rendering_fig.canvas.set_window_title('Paint sim')
-
-animation = FuncAnimation(viz_utils.visualizer.final_rendering_fig, update, interval= deposition_sim_time_resolution*1000, blit=False,
-                          save_count=350, fargs=(scatter, deposition_thickness)) # , cache_frame_data=False, repeat = False)
-
+viz_utils.visualizer.final_rendering_fig.canvas.set_window_title('Paint sim')
+animation = FuncAnimation(viz_utils.visualizer.final_rendering_fig, update,
+                          interval=deposition_sim_time_resolution * 1000, blit=False,
+                          save_count=350,
+                          fargs=(scatter, deposition_thickness))  # , cache_frame_data=False, repeat = False)
 
 # Writer = matplotlib.animation.writers['html']
 # writer = Writer(fps=15, metadata={'artist':'COBOD'}, bitrate=1800)

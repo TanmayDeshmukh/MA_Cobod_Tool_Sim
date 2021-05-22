@@ -41,7 +41,7 @@ def visualize_deposition(template, X_grid, Y_grid):
     ax2 = fig.add_subplot(1, 2, 2, projection='3d')
     ax1.set_xlabel('X(m)'), ax2.set_xlabel('Y(m)')
     ax1.set_ylabel('Y(m)'), ax2.set_xlabel('X(m)')
-    ax2.set_zlabel('Z(mm)')
+    ax2.set_zlabel('f(x, y)')
     # ax2.ticklabel_format(axis="z", style="sci", scilimits=(-1, 2))
     template = np.fliplr(template)
     ax2.plot_surface(X_grid, Y_grid, template,
@@ -203,7 +203,7 @@ class Visualizer:
         self.all_axs =  [self.axs_init, self.final_path_ax, self.axs_temp, self.axs_unord, self.axs_slice, self.axs_mesh]
 
     def mesh_view_adjust(self, mesh):
-        for ax in self.all_axs:
+        for ax in self.all_axs + [self.final_rendering_ax]:
             # for ax in axr:
             ax.relim()
             # update ax.viewLim using the new dataLim

@@ -11,7 +11,7 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree,sample_f
 
     # Take the larger axis and double it = search radius
     query_ball_points = sample_tree.query_ball_point(intersection_location,
-                                                     (gun_model.b if gun_model.a <= gun_model.b else gun_model.a) * 4.0)
+                                                     (gun_model.b if gun_model.a <= gun_model.b else gun_model.a) * 3.5)
     k = 0
     for point_index in query_ball_points:
         point = sample_tree.data[point_index]
@@ -20,10 +20,8 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree,sample_f
         k += 1
         normal_dist_actual = LA.norm(intersection_location - tool_position)
         tool_pos_to_point = point - tool_position
-        tool_pos_to_point_unit = tool_pos_to_point/LA.norm(tool_pos_to_point)
         normal_dist_h_dash = LA.norm(np.dot(tool_pos_to_point, tool_normal))
-        # print('normal_dist_actual/normal_dist_h_dash', normal_dist_actual/normal_dist_h_dash, 'normal_dist_actual', normal_dist_actual, 'normal_dist_h_dash', normal_dist_h_dash)
-        tool_pos_to_proj_point = tool_pos_to_point_unit*(LA.norm(tool_pos_to_point)*normal_dist_actual/normal_dist_h_dash)
+        tool_pos_to_proj_point = tool_pos_to_point * (normal_dist_actual/normal_dist_h_dash)
         rp = tool_pos_to_proj_point - tool_normal * normal_dist_actual
 
         # Debugging
@@ -39,18 +37,14 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree,sample_f
             deposition_at_h_dash = gun_model.deposition_intensity(x, y)
             tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
             # multiplier = ((gun_model.h/tool_pos_to_point_dist)**2)*np.dot(tool_pos_to_point_unit, -surface_normal)/np.dot(tool_pos_to_point_unit, tool_normal)**3
-            # multiplier = ((gun_model.h/normal_dist_h_dash)**2)*np.dot(-tool_normal, surface_normal)
             multiplier = ((LA.norm(tool_pos_to_proj_point)/tool_pos_to_point_dist)**2)*(np.dot(-tool_normal, surface_normal))
             # multiplier = 1
-            if multiplier<0.02:
-                print('multiplier', multiplier)
+
             deposition_thickness[point_index] += multiplier * deposition_at_h_dash * deposition_sim_time_resolution
-    # print('\nDrawing', max(deposition_thickness))
+
     n = matplotlib.colors.Normalize(vmin=min(deposition_thickness),
                                     vmax=max(deposition_thickness))
     m = matplotlib.cm.ScalarMappable(norm=n, cmap='YlOrBr_r')
     scatter.set_color(m.to_rgba(deposition_thickness))
     scatter._facecolor3d = scatter.get_facecolor()
     scatter._edgecolor3d = scatter.get_edgecolor()
-    # print('\ndone')
-

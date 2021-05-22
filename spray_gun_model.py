@@ -5,14 +5,14 @@ import viz_utils
 
 
 class SprayGunModel:
-    def __init__(self, beta1=3.0, beta2=3.0, maj_axis_angle = np.radians(75), min_axis_angle = np.radians(30), f_max=0.001):
+    def __init__(self, beta1=1.5, beta2=2.5, maj_axis_angle = np.radians(90), min_axis_angle = np.radians(45), f_max=0.001):
         self.beta1 = beta1
         self.beta2 = beta2
         self.maj_axis_angle = maj_axis_angle
         self.min_axis_angle = min_axis_angle
-        self.set_h(0.5)
+        self.set_h(0.6)
         self.f_max = f_max
-        self.sim_resolution = 0.001
+        self.sim_resolution = 0.01
         self.viz_resolution = 0.01
         self.z_orientation = 0
 
@@ -31,8 +31,14 @@ class SprayGunModel:
     def deposition_intensity(self, x, y) -> float:
         intensity=0
         if self.check_point_validity(x, y):
+
             intensity = np.clip(self.f_max * pow(1.0 - (x ** 2) / self.a ** 2, self.beta1 - 1) * pow(
                 1.0 - (y ** 2) / ((self.b ** 2) * (1 - (x ** 2) / self.a ** 2)), self.beta2 - 1), 0, self.f_max)
+
+            # r = np.sqrt(x**2+y**2)
+            # intensity = self.f_max* np.exp(-((x/self.beta1)**2+(y/self.beta2)**2)*0.5) # Gaussian
+            # intensity = self.f_max*2/ ((1+(x*2/self.beta1)**2) + (1+(y*2/self.beta2)**2)) # Cauchy
+            # intensity = self.f_max * np.power(1-4*(r**2)/(self.a**2), self.beta1-1) # elliptical
             intensity = np.nan_to_num(intensity, copy=True, nan=0.0, posinf=0.0, neginf=0.0)
         return intensity
 
@@ -46,6 +52,11 @@ class SprayGunModel:
             if self.check_point_validity(rotated_x, rotated_y):
                 profile.append(self.deposition_intensity(rotated_x, rotated_y))
                 x_locations.append(x_)
+        deposition_template, X_grid, Y_grid = self.get_deposition_canvas(self.z_orientation)
+        profile = deposition_template.sum(axis=0)
+        profile = profile[int(profile.shape[0]/2):]
+        x_locations = X_grid[0]
+        x_locations = x_locations[int(x_locations.shape[0]/2):]
         return np.array(profile), np.array(x_locations)
 
     # TODO: show gun standoff in visualization
@@ -75,8 +86,8 @@ class SprayGunModel:
 
                 if self.check_point_validity(rotated_x, rotated_y):
                     deposition_template[y_i][x_i] = self.deposition_intensity(rotated_x, rotated_y)
-                    # if abs(rotated_y)<0.001:
-                    #    print(x_, deposition_template[y_i][x_i])
+                else:
+                    deposition_template[y_i][x_i] = 0
         np.nan_to_num(deposition_template, copy=False, nan=0.0, posinf=0.0, neginf=0.0)
         return deposition_template, X_grid, Y_grid
 
@@ -92,6 +103,6 @@ if __name__ == '__main__':
     viz_utils.visualize_deposition(canvas, X_grid, Y_grid)
 
     prof, locations = gun_model.get_half_1d_profile(np.radians(0))
-    # fig = plt.figure()
-    # plt.plot(locations, prof)
+    fig = plt.figure()
+    plt.plot(locations, prof)
     plt.show()
