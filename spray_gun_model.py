@@ -10,7 +10,7 @@ class SprayGunModel:
         self.beta2 = beta2
         self.maj_axis_angle = maj_axis_angle
         self.min_axis_angle = min_axis_angle
-        self.set_h(0.6)
+        self.set_h(0.4)
         self.f_max = f_max
         self.sim_resolution = 0.01
         self.viz_resolution = 0.01

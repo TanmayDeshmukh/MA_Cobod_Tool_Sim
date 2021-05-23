@@ -194,7 +194,7 @@ class Visualizer:
 
         self.final_rendering_fig, self.final_rendering_ax = plt.subplots(subplot_kw={'projection': '3d'})
         self.final_rendering_fig.tight_layout()
-        self.final_rendering_fig.subplots_adjust(left=-0.1, right=1.1, top=1.1, bottom=-0.05)
+        self.final_rendering_fig.subplots_adjust(left=-0.15, right=1.1, top=1.1, bottom=-0.00)
 
         self.final_rendering_ax.set_xlabel('X(m)')
         self.final_rendering_ax.set_ylabel('Y(m)')

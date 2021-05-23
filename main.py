@@ -17,16 +17,16 @@ import seaborn as sns
 import paint_simulation
 
 # warnings.filterwarnings('error')
-stl_file = 'wall_type_1_angled.STL'  # wall_type_1_angled.STL wall_type_2_vertical wall_type_1_large_angled.STL wall_type_3_large_angled.STL
+stl_file = 'wall_type_3_large_angled.STL'  # wall_type_1_angled.STL wall_type_2_vertical wall_type_1_large_angled.STL wall_type_3_large_angled.STL
 mesh = trimesh.load_mesh('models/' + stl_file)
 
 use_eigen_vector_index = 0
 constant_vel = 0.6  # m/s
 
 deposition_sim_time_resolution = 0.1  # s
-tool_motion_time_resolution = 0.5  # s
+tool_motion_time_resolution = 0.4  # s
 
-standoff_dist = 0.6  # m
+standoff_dist = 0.4  # m
 
 number_of_samples = 10000
 surface_sample_viz_size = 7
@@ -41,13 +41,13 @@ starting_slice_offset = 0.0  # .005 #  gun_model.a/3
 
 slicing_distance = 0.3
 try:
-    slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a / 2
+    slicing_distance = get_optimal_overlap_distance(gun_model, 0, 0) + gun_model.a
 except:
     print('---------------EXCEPTION IN FINDING OPTIMAL DIST-----------------')
 # slicing_distance = 0.5
 
-disp_overlap_profile(gun_model, slicing_distance - gun_model.a / 2, 0, 0)
-get_1d_overlap_profile(gun_model, slicing_distance - gun_model.a / 2, 0, 0, True)
+disp_overlap_profile(gun_model, slicing_distance - gun_model.a , 0, 0)
+get_1d_overlap_profile(gun_model, slicing_distance - gun_model.a , 0, 0, True)
 
 viz_utils.open_figures()
 viz_utils.visualizer.mesh_view_adjust(mesh)
