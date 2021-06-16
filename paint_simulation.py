@@ -37,6 +37,7 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree,sample_f
             deposition_at_h_dash = gun_model.deposition_intensity(x, y)
             tool_pos_to_point_dist = LA.norm(tool_pos_to_point)
             # multiplier = ((gun_model.h/tool_pos_to_point_dist)**2)*np.dot(tool_pos_to_point_unit, -surface_normal)/np.dot(tool_pos_to_point_unit, tool_normal)**3
+
             multiplier = ((LA.norm(tool_pos_to_proj_point)/tool_pos_to_point_dist)**2)*(np.dot(-tool_normal, surface_normal))
             # multiplier = 1
 

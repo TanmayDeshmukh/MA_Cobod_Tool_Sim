@@ -5,12 +5,12 @@ import viz_utils
 
 
 class SprayGunModel:
-    def __init__(self, beta1=1.5, beta2=2.5, maj_axis_angle = np.radians(90), min_axis_angle = np.radians(45), f_max=0.001):
+    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(90), min_axis_angle = np.radians(45), f_max=0.001):
         self.beta1 = beta1
         self.beta2 = beta2
         self.maj_axis_angle = maj_axis_angle
         self.min_axis_angle = min_axis_angle
-        self.set_h(0.4)
+        self.set_h(0.5)
         self.f_max = f_max
         self.sim_resolution = 0.01
         self.viz_resolution = 0.01
@@ -44,14 +44,6 @@ class SprayGunModel:
 
     # Used for finding optimal overlap distance
     def get_half_1d_profile(self, orientation: float) -> (object, object):
-        profile = []
-        x_locations = []
-        for x_ in np.arange(0, max(self.a, self.b), self.sim_resolution):
-            rotated_x = x_ * np.cos(orientation)
-            rotated_y = x_ * np.sin(orientation)
-            if self.check_point_validity(rotated_x, rotated_y):
-                profile.append(self.deposition_intensity(rotated_x, rotated_y))
-                x_locations.append(x_)
         deposition_template, X_grid, Y_grid = self.get_deposition_canvas(self.z_orientation)
         profile = deposition_template.sum(axis=0)
         profile = profile[int(profile.shape[0]/2):]

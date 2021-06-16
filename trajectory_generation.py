@@ -13,7 +13,7 @@ class TrajectoryGenerator:
         self.standoff_dist = standoff_dist
         self.direction_flag = False  # inverts starting direction of the raster pattern
         self.extend_trajectory_outside = False
-        self.vert_dist_threshold = 0.05  # m Set higher (Ex: 0.3) if tool must not turn off when passing through cutouts
+        self.vert_dist_threshold = 0.3  # m Set higher (Ex: 0.3) if tool must not turn off when passing through cutouts
         self.adjacent_tool_pose_angle_threshold = np.radians(1.0)
         self.adjacent_vertex_angle_threshold = np.radians(170.0)
 
@@ -88,9 +88,9 @@ class TrajectoryGenerator:
                 subpath_tool_positions = np.array(subpath_tool_positions)
                 for viz_i in range(len(subpath_tool_positions) - 1):
                     mid_pt = (subpath_tool_positions[viz_i] + subpath_tool_positions[viz_i + 1]) / 2
-                    viz_utils.visualizer.axs_temp.text(mid_pt[0], mid_pt[1] + 0.1, mid_pt[2], str(viz_c),
-                                                       zdir=None).set_bbox(
-                        dict(facecolor='white', alpha=0.5, edgecolor='None'))
+                    # viz_utils.visualizer.axs_temp.text(mid_pt[0], mid_pt[1] + 0.1, mid_pt[2], str(viz_c),
+                    #                                    zdir=None).set_bbox(
+                    #     dict(facecolor='white', alpha=0.5, edgecolor='None'))
                     viz_c += 1
 
             # Combine sub-paths if endpoints are close enough. This must be done before removing unnecessary intermediate points

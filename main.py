@@ -16,24 +16,24 @@ import viz_utils
 import seaborn as sns
 import paint_simulation
 
-# warnings.filterwarnings('error')
-stl_file = 'wall_type_3_large_angled.STL'  # wall_type_1_angled.STL wall_type_2_vertical wall_type_1_large_angled.STL wall_type_3_large_angled.STL
+stl_file = 'wall_type_1_angled.STL'  # wall_type_1_angled.STL wall_type_1_large_angled.STL wall_type_3_large_angled.STL
+# wall_type_2_vertical
 mesh = trimesh.load_mesh('models/' + stl_file)
 
 use_eigen_vector_index = 0
 constant_vel = 0.6  # m/s
 
 deposition_sim_time_resolution = 0.1  # s
-tool_motion_time_resolution = 0.4  # s
+tool_motion_time_resolution = 0.2  # s
 
-standoff_dist = 0.4  # m
+standoff_dist = 0.5  # m
 
 number_of_samples = 10000
 surface_sample_viz_size = 7
 tool_pitch_speed_compensation = False
 
 # tool_limits = [0, 2], [-1.0, 1.9], [0, 2.5] # X, Y, Z
-tool_limits = [-5.0, 5], [-5.0, 5], [0.0, 5.0]
+tool_limits = [-5.0, 5], [-5.0, 5], [0.3, 5.0]
 
 gun_model = SprayGunModel()
 
@@ -71,16 +71,20 @@ eigen_values = eigen_values[idx]
 eigen_vectors = eigen_vectors[:, idx]
 
 print('Gun model a, b', gun_model.a, gun_model.b)
+print('eigen_vectors', eigen_vectors)
 ori_start = np.min(mesh.vertices,
                    axis=0)  # - eigen_vectors[:, use_eigen_vector_index] * (slicing_distance- gun_model.a) #  eigen_vectors[:, 2] * (eigen_values[2] * 10) +
 stop = np.max(mesh.vertices, axis=0)  # + eigen_vectors[:, use_eigen_vector_index] * slicing_distance
 if use_eigen_vector_index == 0:
     ori_start[2] = stop[2] = 0
+
 elif use_eigen_vector_index == 1:
     ori_start[0] = stop[0] = 0
     ori_start[1] = stop[1] = 0
+
 elif use_eigen_vector_index == 2:
     ori_start[1] = stop[1] = 0
+
 
 slice_direction = stop - ori_start
 length = LA.norm(slice_direction)
@@ -90,13 +94,17 @@ slice_direction = stop - start
 length = LA.norm(slice_direction)
 slice_direction /= length
 
+slice_direction = eigen_vectors[: , 0]
+slice_direction[2] = 0
+slice_direction /= LA.norm(slice_direction)
+
 if starting_slice_offset:
     viz_utils.plot_path(viz_utils.visualizer.axs_mesh, [ori_start, start], color='yellow')
 
 print('Selected EV', eigen_vectors[:, use_eigen_vector_index])
 print('slice_direction', slice_direction)
-viz_utils.plot_normals(viz_utils.visualizer.axs_mesh, [start], [eigen_vectors[:, use_eigen_vector_index]],
-                       norm_length=length, color='r', lw=1)
+# viz_utils.plot_normals(viz_utils.visualizer.axs_mesh, [start], [eigen_vectors[:, use_eigen_vector_index]],
+#                        norm_length=length, color='r', lw=1)
 viz_utils.plot_normals(viz_utils.visualizer.axs_slice, [start], [slice_direction], norm_length=length, color='b', lw=1)
 
 # ################################# Slicing #####################################
@@ -309,12 +317,12 @@ def update(frame_number, scatter, deposition_thickness):
             time_scale = 1.0 / surface_scaling(gun_model.h, actual_norm_dist, surface_normal_at_intersect,
                                                tool_pos_to_point, continuous_tool_normals[j])
 
-        if j % 5 == 0 or j == len(continuous_tool_positions) - 1:
+        if j % 10 == 0 or j == len(continuous_tool_positions) - 1:
             # viz_utils.visualizer.final_rendering_ax.scatter(intersection_location[0], intersection_location[1], intersection_location[2],
             #                            s=surface_sample_viz_size,
             #                            picker=2, c='r')  # , c=deposition_thickness, cmap='coolwarm')
 
-            print(f'time_scale {time_scale: .3f}, actual_norm_dist {actual_norm_dist: .3f}, ')
+            # print(f'time_scale {time_scale: .3f}, actual_norm_dist {actual_norm_dist: .3f}, ')
             viz_utils.visualizer.ax_distrib_hist.cla()
             # viz_utils.visualizer.ax_distrib_hist.hist(deposition_thickness, color='blue', edgecolor='black', bins='auto', density=False)
             viz_utils.visualizer.ax_distrib_hist.set_xlabel('deposition thickness (mm)')

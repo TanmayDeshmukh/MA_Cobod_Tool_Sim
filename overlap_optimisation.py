@@ -19,7 +19,8 @@ def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientati
 
     g1_profile = np.pad(g1_profile, (0, padding), 'constant', constant_values=(0, 0))
     g2_profile = np.pad(g2_profile, (0, padding), 'constant', constant_values=(0, 0))
-
+    # g1_profile = g1_profile[padding:]
+    # g2_profile = g2_profile[padding:]
     # Flip right-side half profile
     g2_profile = np.flip(g2_profile)
     x_locations = np.arange(0,  g1_profile.shape[0], step = 1)*gun_model.sim_resolution
@@ -101,7 +102,7 @@ def disp_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation
     X_grid, Y_grid = np.meshgrid(new_x_arr, new_y_arr)
 
     # gun_model1.visualize_deposition(full_canvas_1_padded)
-    viz_utils.visualize_deposition(combined, X_grid, Y_grid)
+    # viz_utils.visualize_deposition(combined, X_grid, Y_grid)
 
 
 if __name__ == '__main__':
@@ -112,7 +113,7 @@ if __name__ == '__main__':
     print('a, b', gun_model.a, gun_model.b)
 
     costs = []
-    d_locs = np.arange(0, gun_model.a, 0.01)
+    d_locs = np.arange(0, gun_model.a, 0.02)
     for d_i in d_locs:
         final_profile, x_locations = get_1d_overlap_profile(gun_model, d_i, 0, 0, False)
         costs.append(cost_function(final_profile))
@@ -125,6 +126,7 @@ if __name__ == '__main__':
     fig.canvas.set_window_title('Cost function')
     ax.plot(d_locs, np.array(costs))
 
+    get_1d_overlap_profile(gun_model, 0, 0, 0, True)
     get_1d_overlap_profile(gun_model, gun_model.a/2, 0, 0, True)
     get_1d_overlap_profile(gun_model, d, 0, 0, True)
 

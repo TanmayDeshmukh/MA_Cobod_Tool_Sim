@@ -170,11 +170,11 @@ class Visualizer:
         self.fig_unord.tight_layout()
         self.fig_unord.subplots_adjust(left=-0.15, right=1.05, top=1.1, bottom=0)
 
-        self.fig_temp = plt.figure()
-        self.axs_temp = self.fig_temp.add_subplot(111, projection='3d')
-        self.fig_temp.canvas.set_window_title('Ordered path')
-        self.fig_temp.tight_layout()
-        self.fig_temp.subplots_adjust(left=-0.15, right=1.05, top=1.1, bottom=0)
+        # self.fig_temp = plt.figure()
+        # self.axs_temp = self.fig_temp.add_subplot(111, projection='3d')
+        # self.fig_temp.canvas.set_window_title('Ordered path')
+        # self.fig_temp.tight_layout()
+        # self.fig_temp.subplots_adjust(left=-0.15, right=1.05, top=1.1, bottom=0)
 
         self.fig_init = plt.figure()
         self.axs_init = self.fig_init.add_subplot(111, projection='3d')
@@ -200,7 +200,7 @@ class Visualizer:
         self.final_rendering_ax.set_ylabel('Y(m)')
         self.final_rendering_ax.set_zlabel('Z(m)')
 
-        self.all_axs =  [self.axs_init, self.final_path_ax, self.axs_temp, self.axs_unord, self.axs_slice, self.axs_mesh]
+        self.all_axs =  [self.axs_init, self.final_path_ax, self.axs_unord, self.axs_slice, self.axs_mesh]
 
     def mesh_view_adjust(self, mesh):
         for ax in self.all_axs + [self.final_rendering_ax]:
