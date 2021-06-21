@@ -1,8 +1,8 @@
-import numpy as np
 
 from spray_gun_model import *
 from scipy.optimize import least_squares
 from spray_gun_model import SprayGunModel
+
 
 def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation_2, visualize = False):
 
@@ -19,8 +19,7 @@ def get_1d_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientati
 
     g1_profile = np.pad(g1_profile, (0, padding), 'constant', constant_values=(0, 0))
     g2_profile = np.pad(g2_profile, (0, padding), 'constant', constant_values=(0, 0))
-    # g1_profile = g1_profile[padding:]
-    # g2_profile = g2_profile[padding:]
+
     # Flip right-side half profile
     g2_profile = np.flip(g2_profile)
     x_locations = np.arange(0,  g1_profile.shape[0], step = 1)*gun_model.sim_resolution
@@ -74,10 +73,8 @@ def disp_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation
     canvas_1, X_grid_1, Y_grid_1 = gun_model.get_deposition_canvas(z_orientation_1)
     canvas_2, X_grid_2, Y_grid_2 = gun_model.get_deposition_canvas(z_orientation_2)
 
-
     # Find maximum height of the two canvases
     max_height_bins = max(canvas_1.shape[0], canvas_2.shape[0])
-
 
     # Vertical padding
     if canvas_1.shape[0]<max_height_bins:
@@ -87,7 +84,6 @@ def disp_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation
     if canvas_2.shape[0] < max_height_bins:
         vertical_diff = int((max_height_bins - canvas_2.shape[0]) / 2)
         canvas_2 = np.pad(canvas_2, (vertical_diff, vertical_diff), 'constant', constant_values=(0, 0))
-
 
     # Horizontal padding
     no_bins_1 = int((overlap_dist+gun_model.a)/min_res)
@@ -99,16 +95,21 @@ def disp_overlap_profile(gun_model, overlap_dist, z_orientation_1, z_orientation
 
     new_y_arr = (np.arange(0, full_canvas_1_padded.shape[0], 1) - full_canvas_1_padded.shape[0]/2)*min_res
     new_x_arr = (np.arange(0, full_canvas_1_padded.shape[1], 1) - full_canvas_1_padded.shape[1]/2)*min_res
-    X_grid, Y_grid = np.meshgrid(new_x_arr, new_y_arr)
-
-    # gun_model1.visualize_deposition(full_canvas_1_padded)
-    # viz_utils.visualize_deposition(combined, X_grid, Y_grid)
 
 
 if __name__ == '__main__':
     gun_model = SprayGunModel()
-    d = get_optimal_overlap_distance(gun_model, np.radians(0), 0)
-    # d= 0.01
+    canvas, X_grid, Y_grid = gun_model.get_deposition_canvas(np.radians(0))
+    prof, locations = gun_model.get_half_1d_profile(np.radians(0))
+    fig = plt.figure()
+    plt.plot(locations, prof)
+    viz_utils.visualize_deposition(canvas, X_grid, Y_grid)
+
+    d = 0.01
+    try:
+        d = get_optimal_overlap_distance(gun_model, np.radians(0), 0)
+    except:
+        print('Opt FAILED')
     print('Optimal distance', d)
     print('a, b', gun_model.a, gun_model.b)
 
@@ -127,9 +128,10 @@ if __name__ == '__main__':
     ax.plot(d_locs, np.array(costs))
 
     get_1d_overlap_profile(gun_model, 0, 0, 0, True)
-    get_1d_overlap_profile(gun_model, gun_model.a/2, 0, 0, True)
+    get_1d_overlap_profile(gun_model, d/2, 0, 0, True)
     get_1d_overlap_profile(gun_model, d, 0, 0, True)
+    get_1d_overlap_profile(gun_model, gun_model.a/2, 0, 0, True)
+    get_1d_overlap_profile(gun_model, gun_model.a, 0, 0, True)
 
-    disp_overlap_profile(gun_model, d, 0, 0)
     plt.show()
 

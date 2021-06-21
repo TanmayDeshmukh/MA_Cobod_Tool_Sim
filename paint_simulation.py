@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import linalg as LA
 import matplotlib
-import viz_utils
+
 
 def affected_points_for_tool_position(deposition_thickness, sample_tree,sample_face_indexes, mesh,
                                        intersection_location,
@@ -11,7 +11,7 @@ def affected_points_for_tool_position(deposition_thickness, sample_tree,sample_f
 
     # Take the larger axis and double it = search radius
     query_ball_points = sample_tree.query_ball_point(intersection_location,
-                                                     (gun_model.b if gun_model.a <= gun_model.b else gun_model.a) * 3.5)
+                                                     (gun_model.b if gun_model.a <= gun_model.b else gun_model.a) * 2.0)
     k = 0
     for point_index in query_ball_points:
         point = sample_tree.data[point_index]

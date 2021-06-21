@@ -1,11 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FormatStrFormatter
 import viz_utils
 
 
 class SprayGunModel:
-    def __init__(self, beta1=2.5, beta2=2.5, maj_axis_angle = np.radians(90), min_axis_angle = np.radians(45), f_max=0.001):
+    def __init__(self, beta1=1.5, beta2=3.0, maj_axis_angle = np.radians(90), min_axis_angle = np.radians(45), f_max=0.001):
         self.beta1 = beta1
         self.beta2 = beta2
         self.maj_axis_angle = maj_axis_angle
@@ -35,10 +34,6 @@ class SprayGunModel:
             intensity = np.clip(self.f_max * pow(1.0 - (x ** 2) / self.a ** 2, self.beta1 - 1) * pow(
                 1.0 - (y ** 2) / ((self.b ** 2) * (1 - (x ** 2) / self.a ** 2)), self.beta2 - 1), 0, self.f_max)
 
-            # r = np.sqrt(x**2+y**2)
-            # intensity = self.f_max* np.exp(-((x/self.beta1)**2+(y/self.beta2)**2)*0.5) # Gaussian
-            # intensity = self.f_max*2/ ((1+(x*2/self.beta1)**2) + (1+(y*2/self.beta2)**2)) # Cauchy
-            # intensity = self.f_max * np.power(1-4*(r**2)/(self.a**2), self.beta1-1) # elliptical
             intensity = np.nan_to_num(intensity, copy=True, nan=0.0, posinf=0.0, neginf=0.0)
         return intensity
 
@@ -85,7 +80,6 @@ class SprayGunModel:
 
     def __str__(self):
         return 'SprayGunModel('+str(vars(self))+')'
-
 
 if __name__ == '__main__':
     gun_model = SprayGunModel()

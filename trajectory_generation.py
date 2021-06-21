@@ -12,7 +12,7 @@ class TrajectoryGenerator:
         self.gun_model = gun_model
         self.standoff_dist = standoff_dist
         self.direction_flag = False  # inverts starting direction of the raster pattern
-        self.extend_trajectory_outside = False
+        self.extend_trajectory_outside = True
         self.vert_dist_threshold = 0.3  # m Set higher (Ex: 0.3) if tool must not turn off when passing through cutouts
         self.adjacent_tool_pose_angle_threshold = np.radians(1.0)
         self.adjacent_vertex_angle_threshold = np.radians(170.0)
@@ -39,6 +39,7 @@ class TrajectoryGenerator:
 
                 for line_segment_index in range(len(subpath.points) - 1):
 
+                    # I think
                     this_face_normal = self.mesh.face_normals[face_indices[face_count_up]] # TODO: Doesnt exactly work all the time
                     face_count_up += 1
 
@@ -53,11 +54,7 @@ class TrajectoryGenerator:
                     subpath_tool_normals.append(-this_face_normal)
                     subpath_tool_normals.append(-this_face_normal)
 
-                    # mid_pt = (vert1+vert2)/2
-                    # plot_normals(visualizer.axs_init, vertices=[np.array(new_ver1)], directions=[np.array(this_face_normal)])
-
                 # check first 2 z values and correct the subpaths' direction
-                # plot_path(visualizer.axs_init, np.array(subpath_tool_positions))
                 viz_utils.plot_path(viz_utils.visualizer.axs_unord, vertices=np.array(subpath_tool_positions), color='g')
 
                 if (subpath_tool_positions[0][2] > subpath_tool_positions[1][2]) ^ self.direction_flag:
@@ -70,10 +67,6 @@ class TrajectoryGenerator:
                 subpath_tool_positions = np.array(subpath_tool_positions)
                 viz_utils.visualizer.axs_unord.scatter(subpath_tool_positions[:, 0],subpath_tool_positions[:, 1],subpath_tool_positions[:, 2], c='g', s=20)
 
-                # viz_utils.plot_normals(viz_utils.visualizer.axs_temp, subpath_tool_positions, subpath_tool_normals, lw=1, hw=0.2)
-                # viz_utils.plot_path(viz_utils.visualizer.axs_temp, vertices=subpath_tool_positions, color='g', lw=1, hw=0.01)
-
-
             # Correct the order of subpaths first (bubble sorting)
             for i in range(len(all_verts_this_section)):
                 for j in range(len(all_verts_this_section) - 1):
@@ -82,16 +75,6 @@ class TrajectoryGenerator:
                                                                                    all_verts_this_section[j]
                         tool_normals_this_section[j], tool_normals_this_section[j + 1] = tool_normals_this_section[j + 1], \
                                                                                          tool_normals_this_section[j]
-            # Visualization
-            viz_c = 0
-            for subpath_tool_positions in all_verts_this_section:
-                subpath_tool_positions = np.array(subpath_tool_positions)
-                for viz_i in range(len(subpath_tool_positions) - 1):
-                    mid_pt = (subpath_tool_positions[viz_i] + subpath_tool_positions[viz_i + 1]) / 2
-                    # viz_utils.visualizer.axs_temp.text(mid_pt[0], mid_pt[1] + 0.1, mid_pt[2], str(viz_c),
-                    #                                    zdir=None).set_bbox(
-                    #     dict(facecolor='white', alpha=0.5, edgecolor='None'))
-                    viz_c += 1
 
             # Combine sub-paths if endpoints are close enough. This must be done before removing unnecessary intermediate points
             # because the end points of the sub paths themselves might be unnecessar
@@ -118,7 +101,7 @@ class TrajectoryGenerator:
 
             all_tool_normals += tool_normals_this_section
 
-            # Visualization of activated(g) and2    `deactivated(k) tool travel within this section cut
+            # Visualization of activated(g) and2`deactivated(k) tool travel within this section cut
             all_tool_locations += all_verts_this_section
             all_verts_this_section = list(itertools.chain.from_iterable(all_verts_this_section))
             all_verts_this_section = np.array(all_verts_this_section)
@@ -129,8 +112,6 @@ class TrajectoryGenerator:
     def combine_subpaths(self, tool_positions: [[]], tool_normals: [[]], vert_dist_threshold: float,
                          adjacent_tool_normal_angle_threshold: float):
         ele_popped = 0
-
-        # print('poses for comb', np.array(tool_positions))
         for i in range(len(tool_positions) - 1):
             inter_vert_dist = LA.norm(np.array(tool_positions[i - ele_popped][-1]) - np.array(
                 tool_positions[i + 1 - ele_popped][0]))
